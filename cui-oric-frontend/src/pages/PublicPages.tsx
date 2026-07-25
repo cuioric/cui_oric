@@ -104,7 +104,7 @@ export function PublicSearchPage() {
         <div className="mx-auto flex h-20 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
           <Brand />
           <div className="flex items-center gap-2">
-            <Link to="/departments" className="hidden text-sm font-semibold text-brand-100 hover:text-white sm:block">
+            <Link to="/departments" className="text-sm font-semibold text-brand-100 hover:text-white">
               Departments
             </Link>
             {initializing ? (
