@@ -15,7 +15,6 @@ const cookieParser = require('cookie-parser');
 const config = require('./config/env');
 const logger = require('./config/logger');
 const { connectDB } = require('./config/db');
-const { initClamScanner } = require('./middleware/virusScan');
 const { globalErrorHandler, notFoundHandler } = require('./middleware/errorHandler');
 const { sanitize } = require('./middleware/validate');
 
@@ -210,11 +209,6 @@ const initializeServices = async () => {
     try {
       // Connect to database
       await connectDB();
-
-      // Initialize ClamAV scanner (skip in test if not available)
-      if (process.env.NODE_ENV !== 'test') {
-        await initClamScanner();
-      }
 
       // Verify email connection (skip in test)
       if (process.env.NODE_ENV !== 'test') {

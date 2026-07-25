@@ -3,12 +3,16 @@
  * Department CRUD and listing
  */
 
-const Department = require('../models/Department');
-const User = require('../models/User');
-const catchAsync = require('../utils/catchAsync');
-const { NotFoundError, ConflictError, BadRequestError } = require('../utils/AppError');
-const { success, paginationMeta } = require('../utils/apiResponse');
-const { escapeRegex } = require('../utils/escapeRegex');
+const Department = require("../models/Department");
+const User = require("../models/User");
+const catchAsync = require("../utils/catchAsync");
+const {
+  NotFoundError,
+  ConflictError,
+  BadRequestError,
+} = require("../utils/AppError");
+const { success, paginationMeta } = require("../utils/apiResponse");
+const { escapeRegex } = require("../utils/escapeRegex");
 
 /**
  * List all departments
@@ -21,11 +25,11 @@ const listDepartments = catchAsync(async (req, res) => {
 
   if (campus) query.campus = campus;
   if (search) {
-    query.name = { $regex: escapeRegex(search), $options: 'i' };
+    query.name = { $regex: escapeRegex(search), $options: "i" };
   }
 
   const departments = await Department.find(query)
-    .populate('hodId', 'name email')
+    .populate("hodId", "name email")
     .sort({ name: 1 })
     .skip((page - 1) * limit)
     .limit(limit)
@@ -33,7 +37,12 @@ const listDepartments = catchAsync(async (req, res) => {
 
   const total = await Department.countDocuments(query);
 
-  return success(res, departments, 'Departments retrieved', paginationMeta(page, limit, total));
+  return success(
+    res,
+    departments,
+    "Departments retrieved",
+    paginationMeta(page, limit, total, Math.ceil(total / limit)),
+  );
 });
 
 /**
@@ -42,21 +51,21 @@ const listDepartments = catchAsync(async (req, res) => {
  */
 const getDepartment = catchAsync(async (req, res) => {
   const department = await Department.findById(req.params.id)
-    .populate('hodId', 'name email')
+    .populate("hodId", "name email")
     .lean();
 
   if (!department) {
-    throw new NotFoundError('Department not found');
+    throw new NotFoundError("Department not found");
   }
 
   // Get faculty count
   const facultyCount = await User.countDocuments({
     departmentId: department._id,
-    role: { $in: ['faculty', 'ms_student', 'phd_student'] },
-    status: 'active',
+    role: { $in: ["faculty", "ms_student", "phd_student"] },
+    status: "active",
   });
 
-  return success(res, { ...department, facultyCount }, 'Department retrieved');
+  return success(res, { ...department, facultyCount }, "Department retrieved");
 });
 
 /**
@@ -69,26 +78,28 @@ const createDepartment = catchAsync(async (req, res) => {
   // Check for duplicate name within campus
   const existing = await Department.findOne({ name, campus });
   if (existing) {
-    throw new ConflictError('Department with this name already exists in this campus');
+    throw new ConflictError(
+      "Department with this name already exists in this campus",
+    );
   }
 
   // Validate HOD if provided
   if (hodId) {
     const hod = await User.findById(hodId);
     if (!hod) {
-      throw new NotFoundError('HOD user not found');
+      throw new NotFoundError("HOD user not found");
     }
-    if (hod.role !== 'hod') {
+    if (hod.role !== "hod") {
       throw new BadRequestError('User must have role "hod"');
     }
-    if (hod.status !== 'active') {
-      throw new BadRequestError('HOD must be active');
+    if (hod.status !== "active") {
+      throw new BadRequestError("HOD must be active");
     }
 
     // Check if user already HOD of another department
     const existingHodDept = await Department.findOne({ hodId });
     if (existingHodDept) {
-      throw new ConflictError('User is already HOD of another department');
+      throw new ConflictError("User is already HOD of another department");
     }
   }
 
@@ -96,10 +107,13 @@ const createDepartment = catchAsync(async (req, res) => {
 
   // Update user if HOD assigned
   if (hodId) {
-    await User.findByIdAndUpdate(hodId, { departmentId: department._id, role: 'hod' });
+    await User.findByIdAndUpdate(hodId, {
+      departmentId: department._id,
+      role: "hod",
+    });
   }
 
-  return success(res, department, 'Department created', null, 201);
+  return success(res, department, "Department created", null, 201);
 });
 
 /**
@@ -111,14 +125,19 @@ const updateDepartment = catchAsync(async (req, res) => {
 
   const department = await Department.findById(req.params.id);
   if (!department) {
-    throw new NotFoundError('Department not found');
+    throw new NotFoundError("Department not found");
   }
 
   // Check for duplicate name
   if (name && name !== department.name) {
-    const existing = await Department.findOne({ name, campus: campus || department.campus });
+    const existing = await Department.findOne({
+      name,
+      campus: campus || department.campus,
+    });
     if (existing && existing._id.toString() !== department._id.toString()) {
-      throw new ConflictError('Department with this name already exists in this campus');
+      throw new ConflictError(
+        "Department with this name already exists in this campus",
+      );
     }
   }
 
@@ -126,29 +145,35 @@ const updateDepartment = catchAsync(async (req, res) => {
   if (hodId !== undefined) {
     // Clear current HOD
     if (department.hodId) {
-      await User.findByIdAndUpdate(department.hodId, { role: 'faculty' });
+      await User.findByIdAndUpdate(department.hodId, { role: "faculty" });
     }
 
     if (hodId) {
       const hod = await User.findById(hodId);
       if (!hod) {
-        throw new NotFoundError('HOD user not found');
+        throw new NotFoundError("HOD user not found");
       }
-      if (hod.role !== 'hod') {
+      if (hod.role !== "hod") {
         throw new BadRequestError('User must have role "hod"');
       }
-      if (hod.status !== 'active') {
-        throw new BadRequestError('HOD must be active');
+      if (hod.status !== "active") {
+        throw new BadRequestError("HOD must be active");
       }
 
       // Check if user already HOD of another department
       const existingHodDept = await Department.findOne({ hodId });
-      if (existingHodDept && existingHodDept._id.toString() !== department._id.toString()) {
-        throw new ConflictError('User is already HOD of another department');
+      if (
+        existingHodDept &&
+        existingHodDept._id.toString() !== department._id.toString()
+      ) {
+        throw new ConflictError("User is already HOD of another department");
       }
 
       // Update user
-      await User.findByIdAndUpdate(hodId, { departmentId: department._id, role: 'hod' });
+      await User.findByIdAndUpdate(hodId, {
+        departmentId: department._id,
+        role: "hod",
+      });
     }
   }
 
@@ -159,7 +184,7 @@ const updateDepartment = catchAsync(async (req, res) => {
 
   await department.save();
 
-  return success(res, department, 'Department updated');
+  return success(res, department, "Department updated");
 });
 
 /**
@@ -169,23 +194,28 @@ const updateDepartment = catchAsync(async (req, res) => {
 const deleteDepartment = catchAsync(async (req, res) => {
   const department = await Department.findById(req.params.id);
   if (!department) {
-    throw new NotFoundError('Department not found');
+    throw new NotFoundError("Department not found");
   }
 
   // Check if department has users
   const userCount = await User.countDocuments({ departmentId: department._id });
   if (userCount > 0) {
-    throw new BadRequestError('Cannot delete department with assigned users. Reassign users first.');
+    throw new BadRequestError(
+      "Cannot delete department with assigned users. Reassign users first.",
+    );
   }
 
   // Clear HOD reference
   if (department.hodId) {
-    await User.findByIdAndUpdate(department.hodId, { role: 'faculty', departmentId: null });
+    await User.findByIdAndUpdate(department.hodId, {
+      role: "faculty",
+      departmentId: null,
+    });
   }
 
   await Department.findByIdAndDelete(req.params.id);
 
-  return success(res, null, 'Department deleted');
+  return success(res, null, "Department deleted");
 });
 
 /**
@@ -195,46 +225,60 @@ const deleteDepartment = catchAsync(async (req, res) => {
 const getDepartmentStats = catchAsync(async (req, res) => {
   const department = await Department.findById(req.params.id);
   if (!department) {
-    throw new NotFoundError('Department not found');
+    throw new NotFoundError("Department not found");
   }
 
   // User stats
   const userStats = await User.aggregate([
     { $match: { departmentId: department._id } },
-    { $group: { _id: '$role', count: { $sum: 1 } } },
+    { $group: { _id: "$role", count: { $sum: 1 } } },
   ]);
 
   // Publication stats
-  const Publication = require('../models/Publication');
+  const Publication = require("../models/Publication");
   const pubStats = await Publication.aggregate([
     { $match: { departmentId: department._id } },
-    { $group: { _id: '$status', count: { $sum: 1 } } },
+    { $group: { _id: "$status", count: { $sum: 1 } } },
   ]);
 
   // Verified publications by year
   const yearStats = await Publication.aggregate([
-    { $match: { departmentId: department._id, status: 'oric_verified' } },
-    { $group: { _id: '$year', count: { $sum: 1 }, citations: { $sum: '$citationCount' } } },
+    { $match: { departmentId: department._id, status: "oric_verified" } },
+    {
+      $group: {
+        _id: "$year",
+        count: { $sum: 1 },
+        citations: { $sum: "$citationCount" },
+      },
+    },
     { $sort: { _id: -1 } },
     { $limit: 10 },
   ]);
 
   // Top authors by h-index
-  const AuthorProfile = require('../models/AuthorProfile');
+  const AuthorProfile = require("../models/AuthorProfile");
   const topAuthors = await AuthorProfile.find({ departmentId: department._id })
-    .populate('userId', 'name email')
-    .sort({ 'metrics.hIndex': -1 })
+    .populate("userId", "name email")
+    .sort({ "metrics.hIndex": -1 })
     .limit(10)
-    .select('userId metrics designation')
+    .select("userId metrics designation")
     .lean();
 
-  return success(res, {
-    department: { id: department._id, name: department.name, campus: department.campus },
-    users: userStats,
-    publications: pubStats,
-    publicationsByYear: yearStats,
-    topAuthors,
-  }, 'Department statistics retrieved');
+  return success(
+    res,
+    {
+      department: {
+        id: department._id,
+        name: department.name,
+        campus: department.campus,
+      },
+      users: userStats,
+      publications: pubStats,
+      publicationsByYear: yearStats,
+      topAuthors,
+    },
+    "Department statistics retrieved",
+  );
 });
 
 module.exports = {

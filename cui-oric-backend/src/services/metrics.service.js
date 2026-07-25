@@ -200,9 +200,24 @@ const recomputePublicationCoAuthors = async (publicationId) => {
 
   if (!publication || publication.status !== "oric_verified") return;
 
-  const internalAuthors = publication.authors
+  const internalAuthorUserIds = publication.authors
     .filter((a) => a.authorId)
     .map((a) => a.authorId.toString());
+
+  // CoAuthorNetwork.authorId/coAuthorId reference AuthorProfile, not User —
+  // Publication.authors[].authorId is a User id, so it must be translated
+  // to the matching AuthorProfile._id before recording a collaboration.
+  const profiles = await AuthorProfile.find({
+    userId: { $in: internalAuthorUserIds },
+  })
+    .select("_id userId")
+    .lean();
+  const userIdToProfileId = new Map(
+    profiles.map((p) => [p.userId.toString(), p._id.toString()]),
+  );
+  const internalAuthors = internalAuthorUserIds
+    .map((userId) => userIdToProfileId.get(userId))
+    .filter(Boolean);
 
   // Create pairs for all combinations
   for (let i = 0; i < internalAuthors.length; i++) {
@@ -233,13 +248,25 @@ const rebuildCoAuthorNetwork = async () => {
     .select("_id year authors")
     .lean();
 
+  // CoAuthorNetwork.authorId/coAuthorId reference AuthorProfile, not User —
+  // Publication.authors[].authorId is a User id. Build one User->AuthorProfile
+  // map up front (instead of querying per publication) so every publication
+  // below can translate its author User ids to the correct AuthorProfile ids.
+  const allProfiles = await AuthorProfile.find({})
+    .select("_id userId")
+    .lean();
+  const userIdToProfileId = new Map(
+    allProfiles.map((p) => [p.userId.toString(), p._id.toString()]),
+  );
+
   let processed = 0;
   const operations = [];
 
   for (const pub of publications) {
     const internalAuthors = pub.authors
       .filter((a) => a.authorId)
-      .map((a) => a.authorId.toString());
+      .map((a) => userIdToProfileId.get(a.authorId.toString()))
+      .filter(Boolean);
 
     for (let i = 0; i < internalAuthors.length; i++) {
       for (let j = i + 1; j < internalAuthors.length; j++) {

@@ -30,4 +30,7 @@ router.get('/research-interests', adminLimiter, requireOricAdmin, analyticsContr
 // Collaboration analytics
 router.get('/collaborations', adminLimiter, requireOricAdmin, analyticsController.getCollaborationAnalytics);
 
+// Maintenance: rebuild CoAuthorNetwork from all verified publications (ORIC Admin only)
+router.post('/rebuild-coauthor-network', adminLimiter, requireOricAdmin, analyticsController.rebuildCoAuthorNetwork);
+
 module.exports = router;

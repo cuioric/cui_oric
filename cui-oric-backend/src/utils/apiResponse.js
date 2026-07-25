@@ -63,16 +63,19 @@ const error = (res, message = 'Error', statusCode = 500, code = 'ERROR', details
  * @param {number} totalPages - Total pages
  * @returns {Object} Pagination metadata
  */
-const paginationMeta = (page, limit, total, totalPages) => ({
-  pagination: {
-    page,
-    limit,
-    total,
-    totalPages,
-    hasNext: page < totalPages,
-    hasPrev: page > 1,
-  },
-});
+const paginationMeta = (page, limit, total) => {
+  const totalPages = Math.ceil(total / limit);
+  return {
+    pagination: {
+      page,
+      limit,
+      total,
+      totalPages,
+      hasNext: page < totalPages,
+      hasPrev: page > 1,
+    },
+  };
+};
 
 module.exports = {
   success,

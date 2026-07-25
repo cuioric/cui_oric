@@ -48,6 +48,14 @@ const addCitation = catchAsync(async (req, res) => {
     throw new BadRequestError('Citation already exists');
   }
 
+  // citationService.addCitation already refreshes the cited paper's authors'
+  // AuthorProfile.metrics internally. Do NOT also call
+  // metricsService.triggerPostVerificationMetrics here — besides being a
+  // duplicate recompute, that helper also re-runs recomputePublicationCoAuthors,
+  // which unconditionally increments CoAuthorNetwork.collaborationCount. That
+  // must only ever fire once, at verification time — calling it again on every
+  // citation add would inflate co-author collaboration counts every time the
+  // paper gets a new citation, even though no new joint publication happened.
   const citation = await citationService.addCitation({
     citingPaperId,
     citedPaperId,
@@ -104,6 +112,9 @@ const getOutgoingCitations = catchAsync(async (req, res) => {
  * DELETE /api/v1/citations/:id
  */
 const deleteCitation = catchAsync(async (req, res) => {
+  // citationService.deleteCitation already refreshes the cited paper's
+  // authors' metrics internally — see note in addCitation above for why we
+  // don't also call metricsService.triggerPostVerificationMetrics here.
   await citationService.deleteCitation(req.params.id);
 
   return success(res, null, 'Citation deleted');

@@ -82,7 +82,7 @@ const aiReviewSchema = new mongoose.Schema(
     virusScanStatus: {
       type: String,
       enum: {
-        values: ['pending', 'clean', 'infected'],
+        values: ['pending', 'clean', 'infected', 'skipped'],
         message: 'Invalid virus scan status',
       },
       default: 'pending',

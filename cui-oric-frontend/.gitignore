@@ -1,0 +1,12 @@
+# Dependencies and generated output
+node_modules/
+dist/
+
+# Local environment and logs
+.env
+.env.local
+*.log
+
+# OS/editor artifacts
+.DS_Store
+.vscode/

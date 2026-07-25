@@ -5,7 +5,38 @@
 
 const Citation = require('../models/Citation');
 const Publication = require('../models/Publication');
+const AuthorProfile = require('../models/AuthorProfile');
+const { recomputeAuthorMetrics } = require('./metrics.service');
 const logger = require('../config/logger');
+
+/**
+ * Recompute AuthorProfile.metrics for every internal author of a publication.
+ * Citation add/delete changes a paper's citationCount, which feeds directly
+ * into totalCitations/hIndex/i10Index on each author's profile — those must
+ * be refreshed here or they silently go stale (stuck at whatever they were
+ * last set to, e.g. 0 if the paper had no citations at verification time).
+ * @param {string} publicationId - Publication ObjectId
+ * @returns {Promise<void>}
+ */
+const refreshAuthorMetricsForPublication = async (publicationId) => {
+  const publication = await Publication.findById(publicationId).select('authors').lean();
+  if (!publication) return;
+
+  const authorIds = publication.authors
+    .filter((a) => a.authorId)
+    .map((a) => a.authorId);
+
+  for (const authorId of authorIds) {
+    try {
+      const profile = await AuthorProfile.findOne({ userId: authorId }).select('_id').lean();
+      if (profile) {
+        await recomputeAuthorMetrics(profile._id);
+      }
+    } catch (error) {
+      logger.error(`Failed to refresh metrics for author ${authorId}:`, error.message);
+    }
+  }
+};
 
 /**
  * Add a citation (internal or external)
@@ -54,6 +85,10 @@ const addCitation = async (data) => {
   });
 
   logger.info(`Citation added: ${citingPaperId || 'external'} -> ${citedPaperId}`);
+
+  // Cited paper's citationCount just changed — refresh its authors' profile
+  // metrics (totalCitations, hIndex, i10Index) so they don't stay stale/0.
+  await refreshAuthorMetricsForPublication(citedPaperId);
 
   return citation;
 };
@@ -176,6 +211,11 @@ const deleteCitation = async (citationId) => {
   }
 
   logger.info(`Citation deleted: ${citationId}`);
+
+  // citationCount changed again — keep the cited paper's authors' metrics in sync.
+  await refreshAuthorMetricsForPublication(citedPaperId);
+
+  return { citedPaperId };
 };
 
 /**

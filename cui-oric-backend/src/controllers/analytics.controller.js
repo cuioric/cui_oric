@@ -11,6 +11,7 @@ const Citation = require('../models/Citation');
 const PublicationReview = require('../models/PublicationReview');
 const ResearchInterest = require('../models/ResearchInterest');
 const catchAsync = require('../utils/catchAsync');
+const { metricsService } = require('../services/metrics.service');
 const { success } = require('../utils/apiResponse');
 const logger = require('../config/logger');
 
@@ -284,7 +285,7 @@ const getStage1Moderation = catchAsync(async (req, res) => {
     .populate('submittedBy', 'name email')
     .populate('departmentId', 'name')
     .populate('authors.authorId', 'name')
-    .select('title year publicationType authors aiReview createdAt')
+    .select('title year publicationType authors aiReview createdAt status')
     .sort({ createdAt: 1 }) // Oldest first for queue
     .skip((page - 1) * limit)
     .limit(limit)
@@ -308,7 +309,7 @@ const getStage2Moderation = catchAsync(async (req, res) => {
     .populate('submittedBy', 'name email')
     .populate('departmentId', 'name')
     .populate('authors.authorId', 'name')
-    .select('title year publicationType authors aiReview createdAt lastRemarks')
+    .select('title year publicationType authors aiReview createdAt lastRemarks status')
     .sort({ createdAt: 1 })
     .skip((page - 1) * limit)
     .limit(limit)
@@ -371,6 +372,20 @@ const getCollaborationAnalytics = catchAsync(async (req, res) => {
   return success(res, topCollaborations, 'Collaboration analytics retrieved');
 });
 
+/**
+ * One-time/maintenance backfill: rebuild the entire CoAuthorNetwork
+ * collection from all currently verified publications. Use this when the
+ * network collection has gone stale relative to AuthorProfile.coAuthors
+ * (e.g. publications verified before the collaboration-recording logic was
+ * wired up correctly, or after a manual data fix).
+ * POST /api/v1/analytics/rebuild-coauthor-network
+ */
+const rebuildCoAuthorNetwork = catchAsync(async (req, res) => {
+  const result = await metricsService.rebuildCoAuthorNetwork();
+
+  return success(res, result, 'Co-author network rebuilt');
+});
+
 module.exports = {
   getInstitutionDashboard,
   getDepartmentDashboard,
@@ -378,4 +393,5 @@ module.exports = {
   getStage2Moderation,
   getResearchInterestAnalytics,
   getCollaborationAnalytics,
+  rebuildCoAuthorNetwork,
 };

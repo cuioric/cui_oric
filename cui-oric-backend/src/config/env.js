@@ -13,8 +13,6 @@ const requiredEnvVars = [
   'AWS_SECRET_ACCESS_KEY',
   'AWS_REGION',
   'AWS_S3_BUCKET',
-  'CLAMAV_HOST',
-  'CLAMAV_PORT',
 ];
 
 const optionalEnvVars = [
@@ -22,11 +20,9 @@ const optionalEnvVars = [
   'NODE_ENV',
   'JWT_ACCESS_EXPIRES',
   'JWT_REFRESH_EXPIRES',
-  'EMAIL_SMTP_HOST',
-  'EMAIL_SMTP_PORT',
-  'EMAIL_SMTP_USER',
-  'EMAIL_SMTP_PASS',
+  'BREVO_API_KEY',
   'EMAIL_FROM',
+  'EMAIL_FROM_NAME',
   'AWS_CLOUDFRONT_DOMAIN',
   'MAX_PDF_SIZE_MB',
   'CORS_ORIGIN',
@@ -78,13 +74,13 @@ const config = {
     // use the main campus domain; MS/PhD students use the students subdomain.
     facultyDomain: process.env.FACULTY_EMAIL_DOMAIN || 'cuisahiwal.edu.pk',
     studentDomain: process.env.STUDENT_EMAIL_DOMAIN || 'students.cuisahiwal.edu.pk',
-    smtp: {
-      host: process.env.EMAIL_SMTP_HOST,
-      port: parseInt(process.env.EMAIL_SMTP_PORT, 10) || 587,
-      user: process.env.EMAIL_SMTP_USER,
-      pass: process.env.EMAIL_SMTP_PASS,
+    brevo: {
+      apiKey: process.env.BREVO_API_KEY,
     },
-    from: process.env.EMAIL_FROM || 'noreply@cuisahiwal.edu.pk',
+    from: {
+      email: process.env.EMAIL_FROM || 'info.cuioric@gmail.com',
+      name: process.env.EMAIL_FROM_NAME || 'CUI ORIC',
+    },
   },
 
   // AWS S3
@@ -94,12 +90,6 @@ const config = {
     region: process.env.AWS_REGION || 'us-east-1',
     s3Bucket: process.env.AWS_S3_BUCKET || 'test-bucket',
     cloudfrontDomain: process.env.AWS_CLOUDFRONT_DOMAIN,
-  },
-
-  // ClamAV
-  clamav: {
-    host: process.env.CLAMAV_HOST || 'localhost',
-    port: parseInt(process.env.CLAMAV_PORT, 10) || 3310,
   },
 
   // File Upload

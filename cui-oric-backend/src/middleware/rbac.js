@@ -133,10 +133,7 @@ const requirePublicationAccess = (requiredStatuses = null) => {
         return next();
       }
 
-      const publication = await Publication.findById(publicationId).select(
-        'status departmentId submittedBy authors pdfFile'
-      );
-
+      const publication = await Publication.findById(publicationId).select('-aiReview -lastRemarks');
       if (!publication) {
         return next(new NotFoundError('Publication not found'));
       }
@@ -145,7 +142,7 @@ const requirePublicationAccess = (requiredStatuses = null) => {
       let hasAccess = false;
 
       if (req.user?.role === 'oric_admin') {
-        hasAccess = true;
+        hasAccess = publication.status !== 'draft' || publication.submittedBy.toString() === req.user._id.toString();
       } else if (!req.user) {
         hasAccess = publication.status === 'oric_verified';
       } else {
@@ -158,7 +155,7 @@ const requirePublicationAccess = (requiredStatuses = null) => {
           hasAccess = true;
         } else if (req.user.role === 'hod') {
           const department = await Department.findOne({ hodId: req.user._id });
-          if (department && publication.departmentId.toString() === department._id.toString()) {
+          if (department && publication.departmentId.toString() === department._id.toString() && publication.status !== 'draft') {
             hasAccess = true;
           }
         }

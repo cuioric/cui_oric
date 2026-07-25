@@ -73,12 +73,22 @@ const userSchema = new mongoose.Schema(
           "pending_email_verification",
           "pending_oric_approval",
           "active",
+          "rejected",
           "suspended",
           "alumni",
         ],
         message: "Invalid status",
       },
       default: "pending_email_verification",
+    },
+
+    // Set when ORIC admin rejects a pending account. Rejection is a
+    // reversible decision (status: "rejected"), not a permanent ban —
+    // this field just records why, and is cleared again on re-approval.
+    rejectionReason: {
+      type: String,
+      trim: true,
+      maxlength: [500, "Rejection reason cannot exceed 500 characters"],
     },
 
     // Email verification

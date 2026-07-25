@@ -3,21 +3,21 @@
  * ORIC Admin user management: list pending, approve/reject, delete, assign HOD
  */
 
-const User = require('../models/User');
-const Department = require('../models/Department');
-const AuthorProfile = require('../models/AuthorProfile');
-const emailService = require('../services/email.service');
-const catchAsync = require('../utils/catchAsync');
+const User = require("../models/User");
+const Department = require("../models/Department");
+const AuthorProfile = require("../models/AuthorProfile");
+const emailService = require("../services/email.service");
+const catchAsync = require("../utils/catchAsync");
 const {
   NotFoundError,
   BadRequestError,
   ConflictError,
   ForbiddenError,
-} = require('../utils/AppError');
-const { success, paginationMeta } = require('../utils/apiResponse');
-const { escapeRegex } = require('../utils/escapeRegex');
-const config = require('../config/env');
-const logger = require('../config/logger');
+} = require("../utils/AppError");
+const { success, paginationMeta } = require("../utils/apiResponse");
+const { escapeRegex } = require("../utils/escapeRegex");
+const config = require("../config/env");
+const logger = require("../config/logger");
 
 /**
  * List pending users (awaiting ORIC approval)
@@ -26,16 +26,23 @@ const logger = require('../config/logger');
 const listPendingUsers = catchAsync(async (req, res) => {
   const { page = 1, limit = 20 } = req.query;
 
-  const users = await User.find({ status: 'pending_oric_approval' })
-    .select('-password -refreshTokenHash -emailVerificationToken -passwordResetToken')
+  const users = await User.find({ status: "pending_oric_approval" })
+    .select(
+      "-password -refreshTokenHash -emailVerificationToken -passwordResetToken",
+    )
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
     .lean();
 
-  const total = await User.countDocuments({ status: 'pending_oric_approval' });
+  const total = await User.countDocuments({ status: "pending_oric_approval" });
 
-  return success(res, users, 'Pending users retrieved', paginationMeta(page, limit, total));
+  return success(
+    res,
+    users,
+    "Pending users retrieved",
+    paginationMeta(page, limit, total, Math.ceil(total / limit)),
+  );
 });
 
 /**
@@ -43,7 +50,14 @@ const listPendingUsers = catchAsync(async (req, res) => {
  * GET /api/v1/admin/users
  */
 const listUsers = catchAsync(async (req, res) => {
-  const { page = 1, limit = 20, status, role, departmentId, search } = req.query;
+  const {
+    page = 1,
+    limit = 20,
+    status,
+    role,
+    departmentId,
+    search,
+  } = req.query;
 
   const query = {};
 
@@ -52,14 +66,16 @@ const listUsers = catchAsync(async (req, res) => {
   if (departmentId) query.departmentId = departmentId;
   if (search) {
     query.$or = [
-      { name: { $regex: escapeRegex(search), $options: 'i' } },
-      { email: { $regex: escapeRegex(search), $options: 'i' } },
+      { name: { $regex: escapeRegex(search), $options: "i" } },
+      { email: { $regex: escapeRegex(search), $options: "i" } },
     ];
   }
 
   const users = await User.find(query)
-    .select('-password -refreshTokenHash -emailVerificationToken -passwordResetToken')
-    .populate('departmentId', 'name campus')
+    .select(
+      "-password -refreshTokenHash -emailVerificationToken -passwordResetToken",
+    )
+    .populate("departmentId", "name campus")
     .sort({ createdAt: -1 })
     .skip((page - 1) * limit)
     .limit(limit)
@@ -67,7 +83,12 @@ const listUsers = catchAsync(async (req, res) => {
 
   const total = await User.countDocuments(query);
 
-  return success(res, users, 'Users retrieved', paginationMeta(page, limit, total));
+  return success(
+    res,
+    users,
+    "Users retrieved",
+    paginationMeta(page, limit, total, Math.ceil(total / limit)),
+  );
 });
 
 /**
@@ -76,25 +97,31 @@ const listUsers = catchAsync(async (req, res) => {
  */
 const getUser = catchAsync(async (req, res) => {
   const user = await User.findById(req.params.id)
-    .select('-password -refreshTokenHash -emailVerificationToken -passwordResetToken')
-    .populate('departmentId', 'name campus hodId')
+    .select(
+      "-password -refreshTokenHash -emailVerificationToken -passwordResetToken",
+    )
+    .populate("departmentId", "name campus hodId")
     .lean();
 
   if (!user) {
-    throw new NotFoundError('User not found');
+    throw new NotFoundError("User not found");
   }
 
   // Also get author profile if exists
-  const authorProfile = await AuthorProfile.findOne({ userId: user._id }).lean();
+  const authorProfile = await AuthorProfile.findOne({
+    userId: user._id,
+  }).lean();
   if (authorProfile) {
     user.authorProfile = authorProfile;
   }
 
-  return success(res, user, 'User retrieved');
+  return success(res, user, "User retrieved");
 });
 
 /**
  * Approve pending user (ORIC Admin)
+ * Also allows re-approving a previously rejected user, since a rejection
+ * is a reversible decision, not a permanent ban.
  * PATCH /api/v1/admin/users/:id/approve
  */
 const approveUser = catchAsync(async (req, res) => {
@@ -102,61 +129,73 @@ const approveUser = catchAsync(async (req, res) => {
 
   const user = await User.findById(req.params.id);
   if (!user) {
-    throw new NotFoundError('User not found');
+    throw new NotFoundError("User not found");
   }
 
-  if (user.status !== 'pending_oric_approval') {
-    throw new BadRequestError('User is not pending approval');
+  if (!["pending_oric_approval", "rejected"].includes(user.status)) {
+    throw new BadRequestError("User is not pending approval");
   }
 
   // Validate department exists
   const department = await Department.findById(departmentId);
   if (!department) {
-    throw new NotFoundError('Department not found');
+    throw new NotFoundError("Department not found");
   }
 
   // Validate role
-  const allowedRoles = ['hod', 'faculty', 'ms_student', 'phd_student'];
+  const allowedRoles = ["hod", "faculty", "ms_student", "phd_student"];
   if (!allowedRoles.includes(role)) {
-    throw new BadRequestError('Invalid role for approval');
+    throw new BadRequestError("Invalid role for approval");
   }
 
   // If role is HOD, check department doesn't already have a HOD
-  if (role === 'hod' && department.hodId) {
-    throw new ConflictError('Department already has a HOD assigned');
+  if (role === "hod" && department.hodId) {
+    throw new ConflictError("Department already has a HOD assigned");
   }
 
   // Update user
-  user.status = 'active';
+  user.status = "active";
   user.departmentId = departmentId;
   user.role = role;
+  user.rejectionReason = undefined;
   await user.save();
 
   // If HOD, assign to department
-  if (role === 'hod') {
+  if (role === "hod") {
     department.hodId = user._id;
     await department.save();
   }
 
-  // Create author profile
-  await AuthorProfile.create({
-    userId: user._id,
-    departmentId,
-    designation: role === 'hod' ? 'Head of Department' : role.replace('_', ' '),
-    affiliation: 'COMSATS University Islamabad, Sahiwal Campus',
-    verifiedEmail: true,
-  });
+  // Create author profile (skip if one already exists, e.g. re-approval after rejection)
+  const existingProfile = await AuthorProfile.findOne({ userId: user._id });
+  if (!existingProfile) {
+    await AuthorProfile.create({
+      userId: user._id,
+      departmentId,
+      designation: role === "hod" ? "Head of Department" : role.replace("_", " "),
+      affiliation: "COMSATS University Islamabad, Sahiwal Campus",
+      verifiedEmail: true,
+    });
+  }
 
   // Send approval email
   emailService
-    .sendTemplatedEmail(user.email, user.name, 'accountApproved')
-    .catch((err) => logger.error('Failed to send approval email:', err));
+    .sendTemplatedEmail(user.email, user.name, "accountApproved")
+    .catch((err) => logger.error("Failed to send approval email:", err));
 
-  return success(res, { userId: user._id, status: user.status }, 'User approved successfully');
+  return success(
+    res,
+    { userId: user._id, status: user.status },
+    "User approved successfully",
+  );
 });
 
 /**
  * Reject pending user (ORIC Admin)
+ * Rejection is reversible: it just marks the account "rejected" so the admin
+ * can revisit and approve it later (e.g. via approveUser) if it turns out to
+ * have been a mistake. This is intentionally NOT a permanent ban — a separate
+ * "suspend"/"ban" action should be used for that if ever needed.
  * PATCH /api/v1/admin/users/:id/reject
  */
 const rejectUser = catchAsync(async (req, res) => {
@@ -164,17 +203,27 @@ const rejectUser = catchAsync(async (req, res) => {
 
   const user = await User.findById(req.params.id);
   if (!user) {
-    throw new NotFoundError('User not found');
+    throw new NotFoundError("User not found");
   }
 
-  if (user.status !== 'pending_oric_approval') {
-    throw new BadRequestError('User is not pending approval');
+  if (user.status !== "pending_oric_approval") {
+    throw new BadRequestError("User is not pending approval");
   }
 
-  user.status = 'suspended'; // Or could delete, but suspend preserves audit trail
+  user.status = "rejected";
+  user.rejectionReason = remarks || "";
   await user.save();
 
-  return success(res, { userId: user._id, status: user.status }, 'User rejected');
+  // Send rejection email
+  emailService
+    .sendTemplatedEmail(user.email, user.name, "accountRejected", remarks)
+    .catch((err) => logger.error("Failed to send rejection email:", err));
+
+  return success(
+    res,
+    { userId: user._id, status: user.status },
+    "User rejected",
+  );
 });
 
 /**
@@ -186,39 +235,46 @@ const updateUser = catchAsync(async (req, res) => {
 
   const user = await User.findById(req.params.id);
   if (!user) {
-    throw new NotFoundError('User not found');
+    throw new NotFoundError("User not found");
   }
 
   // Prevent self-demotion for oric_admin
-  if (user._id.toString() === req.user._id.toString() && role && role !== 'oric_admin') {
-    throw new ForbiddenError('Cannot change your own admin role');
+  if (
+    user._id.toString() === req.user._id.toString() &&
+    role &&
+    role !== "oric_admin"
+  ) {
+    throw new ForbiddenError("Cannot change your own admin role");
   }
 
   // Validate department if provided
   if (departmentId) {
     const department = await Department.findById(departmentId);
     if (!department) {
-      throw new NotFoundError('Department not found');
+      throw new NotFoundError("Department not found");
     }
   }
 
   // If changing to HOD role, check department
-  if (role === 'hod' && departmentId) {
+  if (role === "hod" && departmentId) {
     const department = await Department.findById(departmentId);
-    if (department.hodId && department.hodId.toString() !== user._id.toString()) {
-      throw new ConflictError('Department already has a HOD');
+    if (
+      department.hodId &&
+      department.hodId.toString() !== user._id.toString()
+    ) {
+      throw new ConflictError("Department already has a HOD");
     }
   }
 
   // If removing HOD role, clear department HOD (only when role is being
   // explicitly changed away from 'hod' — not when role is simply omitted
   // from the request, which previously wiped the department's HOD by mistake)
-  if (user.role === 'hod' && role !== undefined && role !== 'hod') {
+  if (user.role === "hod" && role !== undefined && role !== "hod") {
     await Department.findOneAndUpdate({ hodId: user._id }, { hodId: null });
   }
 
   // If assigning HOD role, update department
-  if (role === 'hod' && departmentId) {
+  if (role === "hod" && departmentId) {
     await Department.findByIdAndUpdate(departmentId, { hodId: user._id });
   }
 
@@ -231,13 +287,13 @@ const updateUser = catchAsync(async (req, res) => {
   // oric_admin must always have a null departmentId (enforced by the User model
   // validator) — auto-clear it here so promoting someone to oric_admin doesn't
   // fail validation just because the caller forgot to also send departmentId: null
-  if (user.role === 'oric_admin') {
+  if (user.role === "oric_admin") {
     user.departmentId = null;
   }
 
   await user.save();
 
-  return success(res, user, 'User updated');
+  return success(res, user, "User updated");
 });
 
 /**
@@ -247,16 +303,16 @@ const updateUser = catchAsync(async (req, res) => {
 const deleteUser = catchAsync(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) {
-    throw new NotFoundError('User not found');
+    throw new NotFoundError("User not found");
   }
 
   // Prevent self-deletion
   if (user._id.toString() === req.user._id.toString()) {
-    throw new ForbiddenError('Cannot delete your own account');
+    throw new ForbiddenError("Cannot delete your own account");
   }
 
   // If HOD, clear department HOD reference
-  if (user.role === 'hod') {
+  if (user.role === "hod") {
     await Department.findOneAndUpdate({ hodId: user._id }, { hodId: null });
   }
 
@@ -266,7 +322,7 @@ const deleteUser = catchAsync(async (req, res) => {
   // Delete user
   await User.findByIdAndDelete(req.params.id);
 
-  return success(res, null, 'User deleted');
+  return success(res, null, "User deleted");
 });
 
 /**
@@ -278,31 +334,34 @@ const assignHod = catchAsync(async (req, res) => {
 
   const department = await Department.findById(req.params.id);
   if (!department) {
-    throw new NotFoundError('Department not found');
+    throw new NotFoundError("Department not found");
   }
 
   const user = await User.findById(userId);
   if (!user) {
-    throw new NotFoundError('User not found');
+    throw new NotFoundError("User not found");
   }
 
-  if (user.role !== 'hod') {
+  if (user.role !== "hod") {
     throw new BadRequestError('User must have role "hod"');
   }
 
-  if (user.status !== 'active') {
-    throw new BadRequestError('User must be active');
+  if (user.status !== "active") {
+    throw new BadRequestError("User must be active");
   }
 
   // Check if user already HOD of another department
   const existingHodDept = await Department.findOne({ hodId: userId });
-  if (existingHodDept && existingHodDept._id.toString() !== department._id.toString()) {
-    throw new ConflictError('User is already HOD of another department');
+  if (
+    existingHodDept &&
+    existingHodDept._id.toString() !== department._id.toString()
+  ) {
+    throw new ConflictError("User is already HOD of another department");
   }
 
   // Clear current HOD if any
   if (department.hodId) {
-    await User.findByIdAndUpdate(department.hodId, { role: 'faculty' });
+    await User.findByIdAndUpdate(department.hodId, { role: "faculty" });
   }
 
   // Assign new HOD
@@ -316,10 +375,10 @@ const assignHod = catchAsync(async (req, res) => {
   // Update author profile
   await AuthorProfile.findOneAndUpdate(
     { userId },
-    { departmentId: department._id, designation: 'Head of Department' }
+    { departmentId: department._id, designation: "Head of Department" },
   );
 
-  return success(res, department, 'HOD assigned successfully');
+  return success(res, department, "HOD assigned successfully");
 });
 
 module.exports = {

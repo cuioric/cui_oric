@@ -7,14 +7,13 @@ const { apiLimiter, uploadLimiter } = require('../middleware/rateLimit');
 const { requireAuth, requireAuthor } = require('../middleware/rbac');
 const { authenticate, optionalAuth } = require('../middleware/auth');
 const { handleAvatarUpload } = require('../middleware/upload');
-const { virusScanMiddleware } = require('../middleware/virusScan');
 
 router.use(apiLimiter); // rate limit on all author profile routes
 
 // Authenticated-only routes
 router.get('/me', authenticate, requireAuth, authorProfileController.getMyProfile);
 router.patch('/me', authenticate, requireAuth, validateUpdateAuthorProfile, authorProfileController.updateMyProfile);
-router.post('/me/photo', authenticate, requireAuth, uploadLimiter, handleAvatarUpload, virusScanMiddleware, authorProfileController.uploadPhoto);
+router.post('/me/photo', authenticate, requireAuth, uploadLimiter, handleAvatarUpload, authorProfileController.uploadPhoto);
 router.delete('/me/photo', authenticate, requireAuth, authorProfileController.deletePhoto);
 router.post('/me/recompute-metrics', authenticate, requireAuth, authorProfileController.recomputeMetrics);
 router.get('/me/co-authors', authenticate, requireAuth, authorProfileController.getCoAuthors);

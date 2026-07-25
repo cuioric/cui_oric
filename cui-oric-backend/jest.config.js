@@ -28,6 +28,5 @@ module.exports = {
     '^retext-stringify$': '<rootDir>/tests/__mocks__/retext-stringify.js',
     '^pdf-parse$': '<rootDir>/tests/__mocks__/pdf-parse.js',
     '^write-good$': '<rootDir>/tests/__mocks__/write-good.js',
-    '^clamscan$': '<rootDir>/tests/__mocks__/clamscan.js',
   },
 };

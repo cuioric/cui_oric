@@ -113,7 +113,15 @@ const updatePublication = catchAsync(async (req, res) => {
       (a) => a.authorId && a.authorId.toString() === req.user._id.toString(),
     );
     if (!hasInternalAuthor && req.user.role !== "oric_admin") {
-      throw new BadRequestError("You must be listed as an author");
+      // Auto-add submitter as internal author, matching createPublication's contract
+      updates.authors.unshift({
+        authorId: req.user._id,
+        order: 1,
+        isCorresponding: !updates.authors.some((a) => a.isCorresponding),
+      });
+      updates.authors.forEach((a, i) => {
+        a.order = i + 1;
+      });
     }
   }
 
@@ -230,15 +238,20 @@ const hodReview = catchAsync(async (req, res) => {
   const { decision, remarks } = req.body;
 
   // ORIC Admin bypasses department scoping; HOD must match their own department
-  if (req.user.role === 'hod') {
+  if (req.user.role === "hod") {
     const department = await Department.findOne({ hodId: req.user._id });
-    if (!department || publication.departmentId.toString() !== department._id.toString()) {
-      throw new ForbiddenError('You can only review publications from your department');
+    if (
+      !department ||
+      publication.departmentId.toString() !== department._id.toString()
+    ) {
+      throw new ForbiddenError(
+        "You can only review publications from your department",
+      );
     }
   }
 
-  if (publication.status !== 'submitted_to_hod') {
-    throw new BadRequestError('Publication is not pending HOD review');
+  if (publication.status !== "submitted_to_hod") {
+    throw new BadRequestError("Publication is not pending HOD review");
   }
 
   const previousStatus = publication.status;
@@ -351,14 +364,18 @@ const listPublications = catchAsync(async (req, res) => {
   if (!req.user) {
     query.status = "oric_verified";
   } else if (req.user.role === "oric_admin") {
-    // Admin sees all
-    if (status) query.status = status;
+    // Admin sees everything except other users' drafts
+    query.$or = [{ status: { $ne: "draft" } }, { submittedBy: req.user._id }];
+    if (status) {
+      const orConditions = query.$or;
+      query = { $and: [{ $or: orConditions }, { status }] };
+    }
   } else if (req.user.role === "hod") {
     // HOD sees department publications + own
     const department = await Department.findOne({ hodId: req.user._id });
     if (department) {
       query.$or = [
-        { departmentId: department._id },
+        { departmentId: department._id, status: { $ne: "draft" } },
         { submittedBy: req.user._id },
       ];
     }
@@ -368,11 +385,10 @@ const listPublications = catchAsync(async (req, res) => {
       query = { $and: [{ $or: orConditions }, { status }] };
     }
   } else {
-    // Faculty/students: own publications (all statuses) + verified publications
+    // Faculty/students: own publications (all statuses)
     query.$or = [
       { submittedBy: req.user._id },
       { "authors.authorId": req.user._id },
-      { status: "oric_verified" },
     ];
     if (status) {
       const orConditions = query.$or;
@@ -411,7 +427,7 @@ const listPublications = catchAsync(async (req, res) => {
     res,
     publications,
     "Publications retrieved",
-    paginationMeta(page, limit, total),
+    paginationMeta(page, limit, total, Math.ceil(total / limit)),
   );
 });
 
@@ -570,11 +586,6 @@ const uploadPdf = catchAsync(async (req, res) => {
     throw new BadRequestError("No PDF file uploaded");
   }
 
-  // Virus scan already done by middleware
-  if (req.virusScanResult && !req.virusScanResult.clean) {
-    throw new BadRequestError("File failed virus scan");
-  }
-
   // Delete old PDF if exists
   if (publication.pdfFile) {
     try {
@@ -593,7 +604,8 @@ const uploadPdf = catchAsync(async (req, res) => {
 
   // Update publication
   publication.pdfFile = key;
-  publication.aiReview.virusScanStatus = "clean";
+  publication.aiReview = publication.aiReview || {};
+  publication.aiReview.virusScanStatus = "skipped";
   await publication.save();
 
   // Run AI review pipeline asynchronously
@@ -612,7 +624,8 @@ const uploadPdf = catchAsync(async (req, res) => {
       logger.info(`AI review completed for publication ${publication._id}`);
     } catch (error) {
       logger.error("AI review failed:", error);
-      publication.aiReview.virusScanStatus = "clean"; // Keep as clean, just AI failed
+      publication.aiReview = publication.aiReview || {};
+      publication.aiReview.virusScanStatus = "skipped"; // Keep as skipped, just AI failed
       await publication.save({ validateBeforeSave: false });
     }
   });

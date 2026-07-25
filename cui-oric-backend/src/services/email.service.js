@@ -1,77 +1,103 @@
 /**
  * Email Service
- * Handles sending emails via SMTP with queue/retry logic
+ * Handles sending emails via Brevo (Sendinblue) Transactional Email API with queue/retry logic
  */
 
-const nodemailer = require('nodemailer');
 const config = require('../config/env');
 const logger = require('../config/logger');
+
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
 // Email queue for async sending
 const emailQueue = [];
 let isProcessing = false;
 
 /**
- * Create SMTP transporter
+ * Check if Brevo is configured
  */
-const createTransporter = () => {
-  if (!config.email.smtp.host || !config.email.smtp.user) {
-    logger.warn('SMTP not configured - emails will be logged only');
-    return null;
+const isBrevoConfigured = () => {
+  if (!config.email.brevo || !config.email.brevo.apiKey) {
+    logger.warn('Brevo API key not configured - emails will be logged only');
+    return false;
   }
-
-  return nodemailer.createTransport({
-    host: config.email.smtp.host,
-    port: config.email.smtp.port,
-    secure: config.email.smtp.port === 465, // true for 465, false for other ports
-    auth: {
-      user: config.email.smtp.user,
-      pass: config.email.smtp.pass,
-    },
-    tls: {
-      rejectUnauthorized: config.isProduction,
-    },
-  });
+  return true;
 };
 
-let transporter = createTransporter();
-
 /**
- * Verify SMTP connection
+ * Verify Brevo API connection (checks account endpoint)
  */
 const verifyConnection = async () => {
-  if (!transporter) return false;
+  if (!isBrevoConfigured()) return false;
   try {
-    await transporter.verify();
-    logger.info('SMTP connection verified');
+    const response = await fetch('https://api.brevo.com/v3/account', {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'api-key': config.email.brevo.apiKey,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Brevo account check failed with status ${response.status}`);
+    }
+
+    logger.info('Brevo API connection verified');
     return true;
   } catch (error) {
-    logger.error('SMTP connection failed:', error.message);
+    logger.error('Brevo API connection failed:', error.message);
     return false;
   }
 };
 
 /**
- * Send email with retry logic
+ * Convert attachments to Brevo's expected format
+ * Expects attachments as [{ filename, content (base64 string or Buffer), path }]
+ */
+const formatAttachments = (attachments = []) => {
+  if (!attachments || attachments.length === 0) return undefined;
+
+  return attachments.map((attachment) => {
+    let base64Content = attachment.content;
+
+    if (Buffer.isBuffer(attachment.content)) {
+      base64Content = attachment.content.toString('base64');
+    } else if (attachment.content && typeof attachment.content === 'string') {
+      // Assume already base64-encoded if not a Buffer
+      base64Content = attachment.content;
+    }
+
+    return {
+      name: attachment.filename,
+      content: base64Content,
+      url: attachment.path, // Brevo also supports remote URL attachments
+    };
+  });
+};
+
+/**
+ * Send email with retry logic via Brevo API
  * @param {Object} options - Email options
  * @returns {Promise<boolean>} Success status
  */
 const sendEmail = async ({ to, subject, html, text, attachments = [] }) => {
-  if (!transporter) {
-    // Log email in development when SMTP not configured
+  if (!isBrevoConfigured()) {
+    // Log email in development when Brevo not configured
     if (config.isDevelopment) {
       logger.info('DEV EMAIL:', { to, subject, text: text?.substring(0, 200) });
     }
     return true;
   }
 
-  const mailOptions = {
-    from: config.email.from,
-    to,
+  const payload = {
+    sender: {
+      email: config.email.from.email || config.email.from,
+      name: config.email.from.name || 'CUI ORIC',
+    },
+    to: [{ email: to }],
     subject,
-    html,
-    text,
-    attachments,
+    htmlContent: html,
+    textContent: text,
+    attachment: formatAttachments(attachments),
   };
 
   let attempts = 0;
@@ -79,8 +105,23 @@ const sendEmail = async ({ to, subject, html, text, attachments = [] }) => {
 
   while (attempts < maxAttempts) {
     try {
-      const info = await transporter.sendMail(mailOptions);
-      logger.info(`Email sent to ${to}: ${info.messageId}`);
+      const response = await fetch(BREVO_API_URL, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'api-key': config.email.brevo.apiKey,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text();
+        throw new Error(`Brevo API responded with status ${response.status}: ${errorBody}`);
+      }
+
+      const data = await response.json();
+      logger.info(`Email sent to ${to}: ${data.messageId}`);
       return true;
     } catch (error) {
       attempts++;
@@ -173,7 +214,7 @@ const templates = {
           <p>Dear ${name},</p>
           <p>Thank you for registering. Please verify your email address by clicking the button below:</p>
           <p style="text-align: center;">
-            <a href="${verificationUrl}" class="button">Verify Email Address</a>
+            <a href="${verificationUrl}" class="button" style="display: inline-block; background-color: #1a3c6e; color: #ffffff !important; padding: 12px 30px; text-decoration: none; border-radius: 4px; margin: 20px 0; font-weight: bold;">Verify Email Address</a>
           </p>
           <p>Or copy this link: <a href="${verificationUrl}">${verificationUrl}</a></p>
           <p>This link will expire in 24 hours.</p>
@@ -214,7 +255,7 @@ const templates = {
           <p>Dear ${name},</p>
           <p>You requested a password reset. Click the button below to set a new password:</p>
           <p style="text-align: center;">
-            <a href="${resetUrl}" class="button">Reset Password</a>
+            <a href="${resetUrl}" class="button" style="display: inline-block; background-color: #1a3c6e; color: #ffffff !important; padding: 12px 30px; text-decoration: none; border-radius: 4px; margin: 20px 0; font-weight: bold;">Reset Password</a>
           </p>
           <p>Or copy this link: <a href="${resetUrl}">${resetUrl}</a></p>
           <div class="warning">
@@ -329,7 +370,7 @@ const templates = {
           <p>Dear ${name},</p>
           <p>Your account has been approved by ORIC administration. You can now log in to the CUI ORIC system.</p>
           <p style="text-align: center;">
-            <a href="${config.cors.origin}/login" class="button">Log In</a>
+            <a href="${config.cors.origin}/login" class="button" style="display: inline-block; background-color: #1a3c6e; color: #ffffff !important; padding: 12px 30px; text-decoration: none; border-radius: 4px; margin: 20px 0; font-weight: bold;">Log In</a>
           </p>
           <div class="footer">
             <p>COMSATS University Islamabad, Sahiwal Campus</p>
@@ -340,6 +381,43 @@ const templates = {
       </html>
     `,
     text: `Dear ${name},\n\nYour account has been approved. You can now log in at ${config.cors.origin}/login\n\nCUI ORIC - Sahiwal Campus`,
+  }),
+
+  accountRejected: (name, reason) => ({
+    subject: 'Update on Your CUI ORIC Account Application',
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
+          .container { background: #f9f9f9; border-radius: 8px; padding: 30px; }
+          .header { background: #dc3545; color: white; padding: 20px; border-radius: 8px 8px 0 0; margin: -30px -30px 20px -30px; text-align: center; }
+          .details { background: white; padding: 20px; border-radius: 4px; margin: 20px 0; }
+          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Account Application Not Approved</h1>
+          </div>
+          <p>Dear ${name},</p>
+          <p>We regret to inform you that your CUI ORIC account application has not been approved by ORIC administration.</p>
+          <div class="details">
+            <strong>Reason:</strong> ${reason || 'Not specified'}
+          </div>
+          <p>If you believe this was a mistake or would like to provide additional information, please contact the ORIC office.</p>
+          <div class="footer">
+            <p>COMSATS University Islamabad, Sahiwal Campus</p>
+            <p>Office of Research, Innovation and Commercialization (ORIC)</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+    text: `Dear ${name},\n\nYour CUI ORIC account application has not been approved.\nReason: ${reason || 'Not specified'}\n\nIf you believe this was a mistake, please contact the ORIC office.\n\nCUI ORIC - Sahiwal Campus`,
   }),
 };
 
