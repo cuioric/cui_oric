@@ -170,7 +170,6 @@ const login = catchAsync(async (req, res) => {
 
   // Check status - only active users can log in
   if (user.status !== 'active') {
-    await user.incrementFailedLogins();
     throw invalidCredentialsError();
   }
 

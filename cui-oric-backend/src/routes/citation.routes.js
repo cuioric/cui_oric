@@ -16,7 +16,7 @@ const { authenticate } = require('../middleware/auth');
 router.use(apiLimiter, authenticate, requireAuth);
 
 // Add citation
-router.post('/citations', validateAddCitation, citationController.addCitation);
+router.post('/citations', requireOricAdmin, validateAddCitation, citationController.addCitation);
 
 // Get citation graph for a publication
 router.get('/publications/:id/citations', validateMongoId('id'), citationController.getCitationGraph);
@@ -28,7 +28,7 @@ router.get('/publications/:id/citations/incoming', validateMongoId('id'), valida
 router.get('/publications/:id/citations/outgoing', validateMongoId('id'), validatePagination, citationController.getOutgoingCitations);
 
 // Delete citation
-router.delete('/citations/:id', validateMongoId('id'), citationController.deleteCitation);
+router.delete('/citations/:id', requireOricAdmin, validateMongoId('id'), citationController.deleteCitation);
 
 // Get top cited publications
 router.get('/citations/top', validatePagination, citationController.getTopCited);
