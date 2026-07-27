@@ -250,6 +250,8 @@ export const publicationApi = {
   remove: (id: string) => unwrap(apiClient.delete(`/publications/${id}`)),
   updateMetadata: (id: string, body: unknown) =>
     unwrap<Publication>(apiClient.patch(`/publications/${id}/metadata`, body)),
+  exportCsv: (params: Record<string, unknown>) =>
+    apiClient.get("/publications/export", { params, responseType: "blob" }),
 };
 export const searchApi = {
   publications: (params: Record<string, unknown>) =>

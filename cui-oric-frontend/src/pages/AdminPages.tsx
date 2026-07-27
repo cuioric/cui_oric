@@ -7,7 +7,7 @@ import { EmptyBlock, ErrorBlock, LoadingBlock, Pagination, StatusBadge, displayN
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useAuth } from '../contexts/AuthContext'
 import { adminApi, analyticsApi, applyServerFieldErrors, departmentApi, getErrorMessage, publicationApi } from '../lib/api'
-import type { Department, Publication, Role, User } from '../types'
+import type { Department, Publication, PublicationStatus, Role, User } from '../types'
 
 const campuses = ['Sahiwal', 'Islamabad', 'Lahore', 'Wah', 'Attock', 'Vehari', 'Virtual']
 const roleLabel = (role: string) => role.replaceAll('_', ' ')
@@ -453,6 +453,168 @@ export function AnalyticsPage() {
           <h2 className="font-serif text-xl font-bold text-slate-900">Publication status</h2>
           {dashboard.publicationsByStatus?.length ? <div className="mt-5 grid gap-3 sm:grid-cols-2">{dashboard.publicationsByStatus.map((item) => <div key={item._id} className="flex items-center justify-between rounded-lg bg-slate-50 p-3"><StatusBadge status={item._id} /><span className="text-lg font-bold text-slate-900">{item.count}</span></div>)}</div> : <EmptyBlock title="No publication data" />}
         </section>
+      </div>
+    </div>
+  )
+}
+
+const timeframeOptions = [
+  { value: 'all', label: 'All time' },
+  { value: '3m', label: 'Last 3 months' },
+  { value: '6m', label: 'Last 6 months' },
+  { value: '12m', label: 'Last 12 months' },
+  { value: '24m', label: 'Last 24 months' },
+  { value: 'custom', label: 'Custom range' },
+]
+const statusOptions: { value: PublicationStatus; label: string }[] = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'submitted_to_hod', label: 'With HOD' },
+  { value: 'hod_rejected', label: 'HOD returned' },
+  { value: 'sent_to_oric', label: 'With ORIC' },
+  { value: 'oric_rejected', label: 'ORIC returned' },
+  { value: 'oric_verified', label: 'Verified' },
+]
+const publicationTypeOptions = ['journal_article', 'conference_paper', 'book', 'book_chapter', 'thesis', 'preprint', 'patent']
+
+function MultiCheckGroup({ label, options, selected, onChange }: { label: string; options: { value: string; label: string }[]; selected: string[]; onChange: (next: string[]) => void }) {
+  const toggle = (value: string) => onChange(selected.includes(value) ? selected.filter((v) => v !== value) : [...selected, value])
+  return (
+    <div>
+      <label className="label">{label}</label>
+      <div className="mt-2 flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            type="button"
+            key={opt.value}
+            onClick={() => toggle(opt.value)}
+            className={`min-h-9 rounded-md border px-3 text-sm font-medium ${selected.includes(opt.value) ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function PublicationsExportPage() {
+  const departments = useQuery({ queryKey: ['departments', 'all'], queryFn: () => departmentApi.list({ limit: 100 }) })
+  const [timeframe, setTimeframe] = useState('all')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
+  const [departmentIds, setDepartmentIds] = useState<string[]>([])
+  const [campusValues, setCampusValues] = useState<string[]>([])
+  const [statusValues, setStatusValues] = useState<string[]>([])
+  const [typeValues, setTypeValues] = useState<string[]>([])
+  const [yearFrom, setYearFrom] = useState('')
+  const [yearTo, setYearTo] = useState('')
+  const [search, setSearch] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const departmentOptions = (departments.data?.items || []).map((d) => ({ value: d._id, label: `${d.name} (${d.campus})` }))
+
+  const handleExport = async () => {
+    setBusy(true)
+    setError('')
+    try {
+      const params: Record<string, unknown> = { timeframe }
+      if (timeframe === 'custom') {
+        if (dateFrom) params.dateFrom = dateFrom
+        if (dateTo) params.dateTo = dateTo
+      }
+      if (departmentIds.length) params.departmentId = departmentIds.join(',')
+      if (campusValues.length) params.campus = campusValues.join(',')
+      if (statusValues.length) params.status = statusValues.join(',')
+      if (typeValues.length) params.publicationType = typeValues.join(',')
+      if (yearFrom) params.yearFrom = yearFrom
+      if (yearTo) params.yearTo = yearTo
+      if (search.trim()) params.search = search.trim()
+
+      const response = await publicationApi.exportCsv(params)
+      const blob = new Blob([response.data], { type: 'text/csv;charset=utf-8' })
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      const disposition = response.headers?.['content-disposition'] as string | undefined
+      const match = disposition?.match(/filename="?([^"]+)"?/)
+      link.download = match?.[1] || `publications-export-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(getErrorMessage(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="page-shell">
+      <div>
+        <h1 className="page-title">Export publications</h1>
+        <p className="page-subtitle">Download a CSV of publication records, filtered by time frame, department, campus, and more.</p>
+      </div>
+
+      <div className="mt-6 panel panel-pad space-y-6">
+        <div>
+          <label className="label">Time frame</label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {timeframeOptions.map((opt) => (
+              <button
+                type="button"
+                key={opt.value}
+                onClick={() => setTimeframe(opt.value)}
+                className={`min-h-9 rounded-md border px-3 text-sm font-medium ${timeframe === opt.value ? 'border-brand-700 bg-brand-700 text-white' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {timeframe === 'custom' && (
+            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+              <div>
+                <label className="label">From</label>
+                <input type="date" className="field" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">To</label>
+                <input type="date" className="field" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <MultiCheckGroup label="Campus" options={campuses.map((c) => ({ value: c, label: c }))} selected={campusValues} onChange={setCampusValues} />
+
+        <MultiCheckGroup label="Department" options={departmentOptions} selected={departmentIds} onChange={setDepartmentIds} />
+
+        <MultiCheckGroup label="Status" options={statusOptions} selected={statusValues} onChange={setStatusValues} />
+
+        <MultiCheckGroup label="Publication type" options={publicationTypeOptions.map((t) => ({ value: t, label: t.replaceAll('_', ' ') }))} selected={typeValues} onChange={setTypeValues} />
+
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className="label">Year from</label>
+            <input type="number" className="field" placeholder="e.g. 2020" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Year to</label>
+            <input type="number" className="field" placeholder="e.g. 2026" value={yearTo} onChange={(e) => setYearTo(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Keyword search</label>
+            <input className="field" placeholder="title, abstract, keyword…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          </div>
+        </div>
+
+        {error && <ErrorBlock message={error} />}
+
+        <button type="button" className="btn-primary" disabled={busy} onClick={handleExport}>
+          {busy ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}
+          Export CSV
+        </button>
       </div>
     </div>
   )

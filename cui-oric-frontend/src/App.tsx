@@ -3,7 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AppShell } from './components/AppShell'
 import { ProtectedRoute, PublicOnlyRoute } from './components/RouteGuards'
 import { AuthProvider } from './contexts/AuthContext'
-import { AdminUsersPage, AnalyticsPage, DepartmentsPage, ReviewQueuePage } from './pages/AdminPages'
+import { AdminUsersPage, AnalyticsPage, DepartmentsPage, PublicationsExportPage, ReviewQueuePage } from './pages/AdminPages'
 import {
   ForgotPasswordPage,
   LoginPage,
@@ -82,6 +82,7 @@ export default function App() {
                   <Route path="/admin/departments" element={<DepartmentsPage />} />
                   {/* Legacy /departments inside shell also allowed for backward compatibility, redirects to admin version */}
                   <Route path="/departments/admin" element={<Navigate to="/admin/departments" replace />} />
+                  <Route path="/admin/export" element={<PublicationsExportPage />} />
                 </Route>
               </Route>
             </Route>
