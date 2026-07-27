@@ -467,7 +467,7 @@ const timeframeOptions = [
   { value: 'custom', label: 'Custom range' },
 ]
 const statusOptions: { value: PublicationStatus; label: string }[] = [
-  { value: 'draft', label: 'Draft' },
+  // 'draft' intentionally excluded — drafts are private to their authors and never exportable
   { value: 'submitted_to_hod', label: 'With HOD' },
   { value: 'hod_rejected', label: 'HOD returned' },
   { value: 'sent_to_oric', label: 'With ORIC' },

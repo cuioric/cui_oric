@@ -756,9 +756,17 @@ const exportPublicationsCsv = catchAsync(async (req, res) => {
   // timeframe === 'all' (or unrecognised) -> no date filter
 
   // --- Status filter (comma-separated allowed) ---
+  // Drafts are private, unfinished work belonging to their authors and are
+  // never exportable by an admin — always excluded, even if requested.
   if (status) {
-    const statuses = String(status).split(",").map((s) => s.trim()).filter(Boolean);
-    if (statuses.length) query.status = { $in: statuses };
+    const statuses = String(status)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((s) => s !== "draft");
+    query.status = statuses.length ? { $in: statuses } : { $ne: "draft" };
+  } else {
+    query.status = { $ne: "draft" };
   }
 
   // --- Publication type filter (comma-separated allowed) ---
