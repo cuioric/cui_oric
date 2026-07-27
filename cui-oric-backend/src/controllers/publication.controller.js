@@ -745,6 +745,9 @@ const exportPublicationsCsv = catchAsync(async (req, res) => {
   // --- Dynamic time frame ---
   const timeframeMonthsMap = { "3m": 3, "6m": 6, "12m": 12, "24m": 24 };
   if (timeframe === "custom" && (dateFrom || dateTo)) {
+    if (dateFrom && dateTo && new Date(dateFrom) > new Date(dateTo)) {
+      throw new BadRequestError('The "From" date must be before the "To" date.');
+    }
     query[resolvedDateField] = {};
     if (dateFrom) query[resolvedDateField].$gte = new Date(dateFrom);
     if (dateTo) query[resolvedDateField].$lte = new Date(dateTo);
@@ -777,6 +780,9 @@ const exportPublicationsCsv = catchAsync(async (req, res) => {
 
   // --- Year range ---
   if (yearFrom || yearTo) {
+    if (yearFrom && yearTo && parseInt(yearFrom, 10) > parseInt(yearTo, 10)) {
+      throw new BadRequestError('"Year from" must be less than or equal to "Year to".');
+    }
     query.year = {};
     if (yearFrom) query.year.$gte = parseInt(yearFrom, 10);
     if (yearTo) query.year.$lte = parseInt(yearTo, 10);

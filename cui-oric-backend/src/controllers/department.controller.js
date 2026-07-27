@@ -205,6 +205,17 @@ const deleteDepartment = catchAsync(async (req, res) => {
     );
   }
 
+  // Check if department still has publications referencing it —
+  // deleting it anyway would leave those records with a dangling
+  // departmentId reference (blank department/campus in exports, stats, etc.)
+  const Publication = require("../models/Publication");
+  const publicationCount = await Publication.countDocuments({ departmentId: department._id });
+  if (publicationCount > 0) {
+    throw new BadRequestError(
+      "Cannot delete department with existing publications on record. Reassign or archive them first.",
+    );
+  }
+
   // Clear HOD reference
   if (department.hodId) {
     await User.findByIdAndUpdate(department.hodId, {

@@ -515,8 +515,22 @@ export function PublicationsExportPage() {
   const departmentOptions = (departments.data?.items || []).map((d) => ({ value: d._id, label: `${d.name} (${d.campus})` }))
 
   const handleExport = async () => {
-    setBusy(true)
     setError('')
+    if (timeframe === 'custom') {
+      if (!dateFrom || !dateTo) {
+        setError('Please select both a "From" and "To" date for the custom range.')
+        return
+      }
+      if (dateFrom > dateTo) {
+        setError('The "From" date must be before the "To" date.')
+        return
+      }
+    }
+    if (yearFrom && yearTo && Number(yearFrom) > Number(yearTo)) {
+      setError('"Year from" must be less than or equal to "Year to".')
+      return
+    }
+    setBusy(true)
     try {
       const params: Record<string, unknown> = { timeframe }
       if (timeframe === 'custom') {
