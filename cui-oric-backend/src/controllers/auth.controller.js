@@ -168,7 +168,9 @@ const login = catchAsync(async (req, res) => {
     throw invalidCredentialsError();
   }
 
-  // Check status - only active users can log in
+  // Check status - only active users can log in.
+  // Password was already correct here, so this is NOT a failed login attempt —
+  // don't penalize pending/rejected users' lockout counter for a correct password.
   if (user.status !== 'active') {
     throw invalidCredentialsError();
   }

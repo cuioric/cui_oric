@@ -39,6 +39,9 @@ router.post('/', apiLimiter, requireAuthor, validateCreatePublication, publicati
 // List publications with filters (public + authenticated)
 router.get('/', validatePublicationSearch, publicationController.listPublications);
 
+// Export publications as CSV with dynamic filters (Admin only) — must be registered before '/:id'
+router.get('/export', apiLimiter, requireOricAdmin, publicationController.exportPublicationsCsv);
+
 // Get publication by ID (access controlled by middleware)
 router.get('/:id', validateMongoId('id'), requirePublicationAccess(), publicationController.getPublication);
 

@@ -694,6 +694,167 @@ const getReviews = catchAsync(async (req, res) => {
   return success(res, reviews, "Review history retrieved");
 });
 
+/**
+ * Escape a single CSV field per RFC 4180
+ */
+const csvField = (value) => {
+  if (value === null || value === undefined) return "";
+  const str = String(value);
+  if (/[",\n]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+};
+
+/**
+ * Export publications as CSV with dynamic filters
+ * GET /api/v1/publications/export
+ * Admin only
+ *
+ * Supported query params:
+ *  - timeframe: '3m' | '6m' | '12m' | '24m' | 'all' | 'custom'  (default 'all')
+ *  - dateFrom, dateTo: ISO dates, used when timeframe='custom' (inclusive)
+ *  - dateField: 'createdAt' | 'publicationDate'  (default 'createdAt')
+ *  - departmentId: single id or comma-separated ids
+ *  - campus: single value or comma-separated values (e.g. "Sahiwal,Islamabad")
+ *  - status: single value or comma-separated values
+ *  - publicationType: single value or comma-separated values
+ *  - yearFrom, yearTo: numeric publication-year range
+ *  - search: free-text match on title/abstract/keywords
+ */
+const exportPublicationsCsv = catchAsync(async (req, res) => {
+  const {
+    timeframe = "all",
+    dateFrom,
+    dateTo,
+    dateField = "createdAt",
+    departmentId,
+    campus,
+    status,
+    publicationType,
+    yearFrom,
+    yearTo,
+    search,
+  } = req.query;
+
+  const allowedDateFields = ["createdAt", "publicationDate"];
+  const resolvedDateField = allowedDateFields.includes(dateField) ? dateField : "createdAt";
+
+  const query = {};
+
+  // --- Dynamic time frame ---
+  const timeframeMonthsMap = { "3m": 3, "6m": 6, "12m": 12, "24m": 24 };
+  if (timeframe === "custom" && (dateFrom || dateTo)) {
+    query[resolvedDateField] = {};
+    if (dateFrom) query[resolvedDateField].$gte = new Date(dateFrom);
+    if (dateTo) query[resolvedDateField].$lte = new Date(dateTo);
+  } else if (timeframeMonthsMap[timeframe]) {
+    const since = new Date();
+    since.setMonth(since.getMonth() - timeframeMonthsMap[timeframe]);
+    query[resolvedDateField] = { $gte: since };
+  }
+  // timeframe === 'all' (or unrecognised) -> no date filter
+
+  // --- Status filter (comma-separated allowed) ---
+  if (status) {
+    const statuses = String(status).split(",").map((s) => s.trim()).filter(Boolean);
+    if (statuses.length) query.status = { $in: statuses };
+  }
+
+  // --- Publication type filter (comma-separated allowed) ---
+  if (publicationType) {
+    const types = String(publicationType).split(",").map((s) => s.trim()).filter(Boolean);
+    if (types.length) query.publicationType = { $in: types };
+  }
+
+  // --- Year range ---
+  if (yearFrom || yearTo) {
+    query.year = {};
+    if (yearFrom) query.year.$gte = parseInt(yearFrom, 10);
+    if (yearTo) query.year.$lte = parseInt(yearTo, 10);
+  }
+
+  // --- Department filter (comma-separated allowed) ---
+  let departmentIds = departmentId
+    ? String(departmentId).split(",").map((s) => s.trim()).filter(Boolean)
+    : null;
+
+  // --- Campus filter: resolve to department ids, intersect with departmentId if both given ---
+  if (campus) {
+    const campuses = String(campus).split(",").map((s) => s.trim()).filter(Boolean);
+    const campusDepartments = await Department.find({ campus: { $in: campuses } }).select("_id");
+    const campusDeptIds = campusDepartments.map((d) => d._id.toString());
+    departmentIds = departmentIds
+      ? departmentIds.filter((id) => campusDeptIds.includes(id))
+      : campusDeptIds;
+  }
+  if (departmentIds) {
+    query.departmentId = { $in: departmentIds };
+  }
+
+  // --- Free-text search ---
+  if (search) {
+    query.$text = { $search: search };
+  }
+
+  const publications = await Publication.find(query)
+    .populate("submittedBy", "name email")
+    .populate("departmentId", "name campus")
+    .populate("authors.authorId", "name email")
+    .sort({ createdAt: -1 })
+    .lean();
+
+  const headers = [
+    "Title",
+    "Publication Type",
+    "Status",
+    "Year",
+    "Department",
+    "Campus",
+    "Venue",
+    "Venue Type",
+    "DOI",
+    "Citation Count",
+    "Authors",
+    "Submitted By",
+    "Submitted By Email",
+    "Submitted On",
+    "Publication Date",
+  ];
+
+  const rows = publications.map((pub) => {
+    const authorNames = (pub.authors || [])
+      .map((a) => a.externalName || a.authorId?.name || "")
+      .filter(Boolean)
+      .join("; ");
+
+    return [
+      pub.title || "",
+      (pub.publicationType || "").replace(/_/g, " "),
+      pub.status || "",
+      pub.year || "",
+      pub.departmentId?.name || "",
+      pub.departmentId?.campus || "",
+      pub.venue?.name || "",
+      pub.venue?.type || "",
+      pub.doi || "",
+      pub.citationCount || 0,
+      authorNames,
+      pub.submittedBy?.name || "",
+      pub.submittedBy?.email || "",
+      pub.createdAt ? new Date(pub.createdAt).toISOString().slice(0, 10) : "",
+      pub.publicationDate ? new Date(pub.publicationDate).toISOString().slice(0, 10) : "",
+    ].map(csvField).join(",");
+  });
+
+  const csv = [headers.map(csvField).join(","), ...rows].join("\r\n");
+  const filename = `publications-export-${new Date().toISOString().slice(0, 10)}.csv`;
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+  return res.status(200).send(csv);
+});
+
 module.exports = {
   createPublication,
   updatePublication,
@@ -708,4 +869,5 @@ module.exports = {
   uploadPdf,
   getDownloadUrl,
   getReviews,
+  exportPublicationsCsv,
 };

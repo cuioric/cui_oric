@@ -15,7 +15,7 @@ const { authenticate } = require('../middleware/auth');
 // All routes require authentication
 router.use(apiLimiter, authenticate, requireAuth);
 
-// Add citation
+// Add citation (Admin only — citations are curated bibliographic data, not user-owned)
 router.post('/citations', requireOricAdmin, validateAddCitation, citationController.addCitation);
 
 // Get citation graph for a publication
@@ -27,7 +27,7 @@ router.get('/publications/:id/citations/incoming', validateMongoId('id'), valida
 // Get outgoing citations
 router.get('/publications/:id/citations/outgoing', validateMongoId('id'), validatePagination, citationController.getOutgoingCitations);
 
-// Delete citation
+// Delete citation (Admin only — was previously any authenticated user, no ownership check)
 router.delete('/citations/:id', requireOricAdmin, validateMongoId('id'), citationController.deleteCitation);
 
 // Get top cited publications
