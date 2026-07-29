@@ -721,46 +721,13 @@ export function ReviewQueuePage() {
 
 export function AnalyticsPage() {
   const { user } = useAuth();
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
-  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
-  const [selectedType, setSelectedType] = useState<string[]>([]);
-  const [duration, setDuration] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [yearFrom, setYearFrom] = useState("");
-  const [yearTo, setYearTo] = useState("");
-
-  // Applied filters (only update on Apply click)
-  const [appliedDepartments, setAppliedDepartments] = useState<string[]>([]);
-  const [appliedStatus, setAppliedStatus] = useState<string[]>([]);
-  const [appliedType, setAppliedType] = useState<string[]>([]);
-  const [appliedDuration, setAppliedDuration] = useState("all");
-  const [appliedDateFrom, setAppliedDateFrom] = useState("");
-  const [appliedDateTo, setAppliedDateTo] = useState("");
-  const [appliedYearFrom, setAppliedYearFrom] = useState("");
-  const [appliedYearTo, setAppliedYearTo] = useState("");
-
-  const departmentsQuery = useQuery({
-    queryKey: ["departments", "all"],
-    queryFn: () => departmentApi.list({ limit: 100 }),
-  });
 
   const data = useQuery({
-    queryKey: ["analytics", user?.role, appliedDuration, appliedDateFrom, appliedDateTo, appliedDepartments.join(","), appliedStatus.join(","), appliedType.join(","), appliedYearFrom, appliedYearTo],
-    queryFn: () => {
-      const params: Record<string, unknown> = {};
-      if (appliedDuration && appliedDuration !== "all") params.duration = appliedDuration;
-      if (appliedDateFrom) params.dateFrom = appliedDateFrom;
-      if (appliedDateTo) params.dateTo = appliedDateTo;
-      if (appliedDepartments.length) params.departmentId = appliedDepartments.join(",");
-      if (appliedStatus.length) params.status = appliedStatus.join(",");
-      if (appliedType.length) params.publicationType = appliedType.join(",");
-      if (appliedYearFrom) params.yearFrom = appliedYearFrom;
-      if (appliedYearTo) params.yearTo = appliedYearTo;
-      return user?.role === "oric_admin"
-        ? analyticsApi.institution(params)
-        : analyticsApi.department();
-    },
+    queryKey: ["analytics", user?.role],
+    queryFn: () =>
+      user?.role === "oric_admin"
+        ? analyticsApi.institution()
+        : analyticsApi.department(),
     enabled: user?.role === "oric_admin" || user?.role === "hod",
   });
 
@@ -793,10 +760,6 @@ export function AnalyticsPage() {
     1,
   );
 
-  const deptOptions = (departmentsQuery.data?.items || []).map((d) => ({
-    value: d._id,
-    label: `${d.name} (${d.campus})`,
-  }));
 
   return (
     <div className="page-shell">
@@ -808,91 +771,6 @@ export function AnalyticsPage() {
             : `${displayName(dashboard.department)} research performance and workflow activity.`}
         </p>
       </div>
-
-      {/* Beautiful multi-select filters */}
-      <section className="panel panel-pad mt-6">
-        <h2 className="font-sans text-base font-bold text-slate-900 mb-4">Filters</h2>
-        <div className="space-y-5">
-          <div>
-            <label className="label">Duration</label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: "all", label: "All time" },
-                { value: "3m", label: "3 months" },
-                { value: "6m", label: "6 months" },
-                { value: "12m", label: "12 months" },
-                { value: "24m", label: "24 months" },
-                { value: "custom", label: "Custom" },
-              ].map((opt) => (
-                <button
-                  type="button"
-                  key={opt.value}
-                  onClick={() => setDuration(opt.value)}
-                  className={`min-h-9 rounded-md border px-3 text-sm font-medium ${duration === opt.value ? "border-brand-700 bg-brand-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
-            {duration === "custom" && (
-              <div className="mt-3 flex gap-3">
-                <input type="date" className="field w-44" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                <input type="date" className="field w-44" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              </div>
-            )}
-          </div>
-
-          <MultiCheckGroup
-            label="Department"
-            options={deptOptions}
-            selected={selectedDepartments}
-            onChange={setSelectedDepartments}
-          />
-
-          <MultiCheckGroup
-            label="Status"
-            options={statusOptions.map((o) => ({ value: o.value, label: o.label }))}
-            selected={selectedStatus}
-            onChange={setSelectedStatus}
-          />
-
-          <MultiCheckGroup
-            label="Publication type"
-            options={publicationTypeOptions.map((t) => ({ value: t, label: t.replaceAll("_", " ") }))}
-            selected={selectedType}
-            onChange={setSelectedType}
-          />
-
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <label className="label">Year from</label>
-              <input type="number" className="field" placeholder="e.g. 2020" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Year to</label>
-              <input type="number" className="field" placeholder="e.g. 2026" value={yearTo} onChange={(e) => setYearTo(e.target.value)} />
-            </div>
-          </div>
-        </div>
-        <div className="mt-4 flex justify-end">
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={() => {
-              setAppliedDuration(duration);
-              setAppliedDateFrom(dateFrom);
-              setAppliedDateTo(dateTo);
-              setAppliedDepartments([...selectedDepartments]);
-              setAppliedStatus([...selectedStatus]);
-              setAppliedType([...selectedType]);
-              setAppliedYearFrom(yearFrom);
-              setAppliedYearTo(yearTo);
-            }}
-          >
-            Apply Filters
-          </button>
-        </div>
-      </section>
 
       {/* Overview cards */}
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
