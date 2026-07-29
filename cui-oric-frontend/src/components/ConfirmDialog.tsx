@@ -57,7 +57,7 @@ export function ConfirmDialog({
             <AlertTriangle className="h-5 w-5" />
           </div>
           <div className="min-w-0 flex-1 pr-6">
-            <h3 className="font-serif text-lg font-bold text-slate-900">{title}</h3>
+            <h3 className="font-sans text-lg font-bold text-slate-900">{title}</h3>
             <p className="mt-2 text-sm leading-6 text-slate-600">{message}</p>
             <p className="mt-2 text-[11px] font-medium tracking-wide text-brand-700 uppercase">CUI ORIC — Secure Action</p>
           </div>

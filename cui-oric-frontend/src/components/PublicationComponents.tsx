@@ -28,7 +28,7 @@ export function PublicationCard({ publication, showDepartment = false }: { publi
         <StatusBadge status={publication.status || 'draft'} />
         <span className="shrink-0 text-xs font-medium text-slate-500">{publication.citationCount || 0} citations</span>
       </div>
-      <Link to={`/publications/${publication._id}`} className="mt-3 block font-serif text-lg font-bold leading-snug text-slate-900 hover:text-brand-700 line-clamp-2" title={title}>
+      <Link to={`/publications/${publication._id}`} className="mt-3 block font-sans text-lg font-bold leading-snug text-slate-900 hover:text-brand-700 line-clamp-2" title={title}>
         {title}
       </Link>
       <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">

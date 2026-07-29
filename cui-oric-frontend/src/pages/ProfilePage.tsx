@@ -185,7 +185,7 @@ export function ProfilePage() {
                 Remove photo
               </button>
             )}
-            <h2 className="mt-4 font-serif text-xl font-bold text-slate-900">
+            <h2 className="mt-4 font-sans text-xl font-bold text-slate-900">
               {data.userId.name}
             </h2>
             <p className="mt-1 text-sm text-slate-600">
@@ -197,7 +197,7 @@ export function ProfilePage() {
           </section>
           <section className="panel panel-pad">
             <div className="flex items-center justify-between gap-2">
-              <h2 className="font-serif text-lg font-bold text-slate-900">
+              <h2 className="font-sans text-lg font-bold text-slate-900">
                 Research metrics
               </h2>
               <button
@@ -246,7 +246,7 @@ export function ProfilePage() {
             )}
           </section>
           <section className="panel panel-pad">
-            <h2 className="font-serif text-lg font-bold text-slate-900">
+            <h2 className="font-sans text-lg font-bold text-slate-900">
               Co-author network
             </h2>
             {network.isLoading ? (
@@ -277,7 +277,7 @@ export function ProfilePage() {
             update.mutate(values);
           })}
         >
-          <h2 className="font-serif text-xl font-bold text-slate-900">
+          <h2 className="font-sans text-xl font-bold text-slate-900">
             Academic details
           </h2>
           <p className="mt-1 text-sm text-slate-500">

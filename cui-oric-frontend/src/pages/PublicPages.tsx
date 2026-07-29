@@ -142,7 +142,7 @@ export function PublicSearchPage() {
       <section className="bg-gradient-to-br from-brand-800 via-brand-700 to-cui-blue px-4 py-12 text-white sm:py-16">
         <div className="mx-auto max-w-4xl text-center">
           <p className="text-sm font-bold tracking-[.14em] text-brand-100">COMSATS UNIVERSITY ISLAMABAD</p>
-          <h1 className="mt-4 font-serif text-3xl font-bold leading-tight sm:text-5xl">Research & publications repository</h1>
+          <h1 className="mt-4 font-sans text-3xl font-bold leading-tight sm:text-5xl">Research & publications repository</h1>
           <p className="mx-auto mt-4 max-w-2xl text-sm leading-6 text-brand-100 sm:text-base">
             Discover ORIC-verified research from CUI faculty, MS and PhD scholars.
           </p>
@@ -281,7 +281,7 @@ export function PublicSearchPage() {
           <section>
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
-                <h2 className="font-serif text-2xl font-bold text-slate-900">Explore research</h2>
+                <h2 className="font-sans text-2xl font-bold text-slate-900">Explore research</h2>
                 <p className="mt-1 text-sm text-slate-500">Only ORIC-verified publications are available publicly.</p>
               </div>
               <button
@@ -418,7 +418,7 @@ export function PublicAuthorProfilePage() {
               {person.photoUrl ? <img className="h-full w-full object-cover" src={person.photoUrl} alt={person.userId.name} /> : person.userId.name.slice(0, 1)}
             </div>
             <div className="ml-28 min-h-14">
-              <h1 className="font-serif text-2xl font-bold text-slate-900">{person.userId.name}</h1>
+              <h1 className="font-sans text-2xl font-bold text-slate-900">{person.userId.name}</h1>
               <p className="mt-1 text-sm text-slate-600">{person.designation || person.userId.role.replace('_', ' ')} · {displayName(person.departmentId)}</p>
             </div>
             <p className="mt-6 max-w-2xl text-sm text-slate-600">{person.affiliation}</p>
@@ -433,7 +433,7 @@ export function PublicAuthorProfilePage() {
         </section>
         <div className="mt-6 grid gap-6 lg:grid-cols-3">
           <section className="panel panel-pad">
-            <h2 className="font-serif text-lg font-bold">Research metrics</h2>
+            <h2 className="font-sans text-lg font-bold">Research metrics</h2>
             <dl className="mt-4 space-y-3 text-sm">
               {Object.entries(person.metrics || {}).filter(([key]) => key !== 'lastCalculatedAt').slice(0, 3).map(([label, value]) => (
                 <div className="flex justify-between" key={label}>
@@ -444,7 +444,7 @@ export function PublicAuthorProfilePage() {
             </dl>
           </section>
           <section className="panel panel-pad lg:col-span-2">
-            <h2 className="font-serif text-lg font-bold">Co-author network</h2>
+            <h2 className="font-sans text-lg font-bold">Co-author network</h2>
             {network.isLoading ? (
               <LoadingBlock />
             ) : (
@@ -455,7 +455,7 @@ export function PublicAuthorProfilePage() {
             )}
           </section>
           <section className="panel panel-pad lg:col-span-3">
-            <h2 className="font-serif text-lg font-bold">Collaborators</h2>
+            <h2 className="font-sans text-lg font-bold">Collaborators</h2>
             {coAuthors.isLoading ? (
               <LoadingBlock />
             ) : !coAuthors.data?.data.length ? (
@@ -513,7 +513,7 @@ export function PublicDepartmentsPage() {
             <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-3">
               {list.data.items.map((department) => (
                 <article className="p-5" key={department._id}>
-                  <h2 className="font-serif text-lg font-bold text-slate-900">{department.name}</h2>
+                  <h2 className="font-sans text-lg font-bold text-slate-900">{department.name}</h2>
                   <p className="mt-1 text-sm text-slate-500">{department.campus} campus</p>
                   <p className="mt-4 text-sm text-slate-700">HOD: {displayName(department.hodId) || 'Not assigned'}</p>
                   <p className="mt-2 text-xs text-slate-400">This is a public read-only view. Contact ORIC admin for changes.</p>

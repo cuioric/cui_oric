@@ -136,7 +136,7 @@ export function DashboardPage() {
         <section className="panel">
           <div className="flex items-center justify-between border-b px-5 py-4">
             <div>
-              <h2 className="font-serif text-lg font-bold text-slate-900">Recent publications</h2>
+              <h2 className="font-sans text-lg font-bold text-slate-900">Recent publications</h2>
               <p className="mt-0.5 text-sm text-slate-500">{isAdmin || isHod ? 'Recently verified publications' : 'Your latest publication activity'}</p>
             </div>
             <Link to="/publications" className="text-sm font-semibold text-brand-700 hover:underline">
@@ -163,7 +163,7 @@ export function DashboardPage() {
         </section>
 
         <section className="panel panel-pad">
-          <h2 className="font-serif text-lg font-bold text-slate-900">Quick guidance</h2>
+          <h2 className="font-sans text-lg font-bold text-slate-900">Quick guidance</h2>
           <ol className="mt-4 space-y-4 text-sm text-slate-600">
             {guidanceSteps.map((step, index) => (
               <li key={step} className="flex gap-3">

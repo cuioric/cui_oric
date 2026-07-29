@@ -349,9 +349,9 @@ export const adminApi = {
     ),
 };
 export const analyticsApi = {
-  institution: () => unwrap<Dashboard>(apiClient.get("/analytics/institution")),
-  department: () =>
-    unwrap<Dashboard | null>(apiClient.get("/analytics/department")),
+  institution: (params?: Record<string, unknown>) => unwrap<Dashboard>(apiClient.get("/analytics/institution", params ? { params } : {})),
+  department: (params?: Record<string, unknown>) =>
+    unwrap<Dashboard | null>(apiClient.get("/analytics/department", params ? { params } : {})),
   hodQueue: (params: Record<string, unknown>) =>
     unwrap<Publication[]>(
       apiClient.get("/analytics/moderation/stage1", { params }),

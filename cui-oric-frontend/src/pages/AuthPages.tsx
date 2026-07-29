@@ -30,7 +30,7 @@ function AuthFrame({ title, lead, children }: { title: string; lead: string; chi
         </div>
         <div className="panel overflow-hidden">
           <div className="border-b border-slate-100 px-6 py-6">
-            <h1 className="font-serif text-2xl font-bold text-slate-900">{title}</h1>
+            <h1 className="font-sans text-2xl font-bold text-slate-900">{title}</h1>
             <p className="mt-1.5 text-sm leading-6 text-slate-600">{lead}</p>
           </div>
           <div className="p-6">{children}</div>

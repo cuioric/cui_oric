@@ -16,12 +16,73 @@ const { success } = require('../utils/apiResponse');
 const logger = require('../config/logger');
 
 /**
+ * Build publication query filters from analytics query parameters
+ */
+function buildPublicationFilter(req) {
+  const filter = {};
+  const { duration, dateFrom, dateTo, departmentId, status, publicationType, yearFrom, yearTo } = req.query;
+
+  // Duration / custom date range on createdAt (for activity) or publication year
+  if (duration && duration !== 'all') {
+    const now = new Date();
+    let fromDate = new Date();
+    if (duration === '3m') fromDate.setMonth(fromDate.getMonth() - 3);
+    else if (duration === '6m') fromDate.setMonth(fromDate.getMonth() - 6);
+    else if (duration === '12m') fromDate.setMonth(fromDate.getMonth() - 12);
+    else if (duration === '24m') fromDate.setMonth(fromDate.getMonth() - 24);
+    if (duration === 'custom') {
+      if (dateFrom) fromDate = new Date(dateFrom);
+      else fromDate = undefined;
+    }
+    if (fromDate && duration !== 'custom') {
+      filter.createdAt = { $gte: fromDate };
+    }
+    if (duration === 'custom' && dateFrom && dateTo) {
+      filter.createdAt = { $gte: new Date(dateFrom), $lte: new Date(dateTo) };
+    } else if (duration === 'custom' && dateFrom) {
+      filter.createdAt = { $gte: new Date(dateFrom) };
+    } else if (duration === 'custom' && dateTo) {
+      filter.createdAt = { $lte: new Date(dateTo) };
+    }
+  }
+
+  // Department filter
+  if (departmentId) {
+    const ids = Array.isArray(departmentId) ? departmentId : [departmentId];
+    filter.departmentId = { $in: ids };
+  }
+
+  // Status filter
+  if (status) {
+    const statuses = Array.isArray(status) ? status : [status];
+    filter.status = { $in: statuses };
+  }
+
+  // Publication type filter
+  if (publicationType) {
+    const types = Array.isArray(publicationType) ? publicationType : [publicationType];
+    filter.publicationType = { $in: types };
+  }
+
+  // Year range filter
+  if (yearFrom || yearTo) {
+    const yearFilter = {};
+    if (yearFrom) yearFilter.$gte = parseInt(yearFrom, 10);
+    if (yearTo) yearFilter.$lte = parseInt(yearTo, 10);
+    filter.year = yearFilter;
+  }
+
+  return filter;
+}
+
+/**
  * Institution-wide dashboard (ORIC Admin)
  * GET /api/v1/admin/analytics/institution
  */
 const getInstitutionDashboard = catchAsync(async (req, res) => {
   const currentYear = new Date().getFullYear();
   const fiveYearsAgo = currentYear - 4;
+  const pubFilter = buildPublicationFilter(req);
 
   // User statistics
   const userStats = await User.aggregate([
@@ -35,31 +96,32 @@ const getInstitutionDashboard = catchAsync(async (req, res) => {
 
   // Publication statistics
   const pubStats = await Publication.aggregate([
+    { $match: pubFilter },
     { $group: { _id: '$status', count: { $sum: 1 } } },
   ]);
 
-  const verifiedPubs = await Publication.countDocuments({ status: 'oric_verified' });
+  const verifiedPubs = await Publication.countDocuments({ status: 'oric_verified', ...pubFilter });
   const totalCitations = await Publication.aggregate([
-    { $match: { status: 'oric_verified' } },
+    { $match: { status: 'oric_verified', ...pubFilter } },
     { $group: { _id: null, total: { $sum: '$citationCount' } } },
   ]);
 
   // Publications by year (last 10 years)
   const pubsByYear = await Publication.aggregate([
-    { $match: { status: 'oric_verified', year: { $gte: currentYear - 9 } } },
+    { $match: { status: 'oric_verified', year: { $gte: currentYear - 9 }, ...pubFilter } },
     { $group: { _id: '$year', count: { $sum: 1 }, citations: { $sum: '$citationCount' } } },
     { $sort: { _id: 1 } },
   ]);
 
   // Publications by type
   const pubsByType = await Publication.aggregate([
-    { $match: { status: 'oric_verified' } },
+    { $match: { status: 'oric_verified', ...pubFilter } },
     { $group: { _id: '$publicationType', count: { $sum: 1 } } },
   ]);
 
   // Publications by department
   const pubsByDept = await Publication.aggregate([
-    { $match: { status: 'oric_verified' } },
+    { $match: { status: 'oric_verified', ...pubFilter } },
     { $group: { _id: '$departmentId', count: { $sum: 1 }, citations: { $sum: '$citationCount' } } },
     { $sort: { count: -1 } },
     { $limit: 20 },
@@ -85,12 +147,12 @@ const getInstitutionDashboard = catchAsync(async (req, res) => {
     .lean();
 
   // Review workload (pending reviews)
-  const pendingHodReviews = await Publication.countDocuments({ status: 'submitted_to_hod' });
-  const pendingOricReviews = await Publication.countDocuments({ status: 'sent_to_oric' });
+  const pendingHodReviews = await Publication.countDocuments({ status: 'submitted_to_hod', ...pubFilter });
+  const pendingOricReviews = await Publication.countDocuments({ status: 'sent_to_oric', ...pubFilter });
 
   // AI review statistics
   const aiReviewStats = await Publication.aggregate([
-    { $match: { 'aiReview.checkedAt': { $exists: true } } },
+    { $match: { 'aiReview.checkedAt': { $exists: true }, ...pubFilter } },
     {
       $group: {
         _id: '$aiReview.virusScanStatus',
@@ -108,7 +170,7 @@ const getInstitutionDashboard = catchAsync(async (req, res) => {
   const internalCitations = await Citation.countDocuments({ citingPaperId: { $ne: null } });
 
   // Recent activity
-  const recentPublications = await Publication.find({ status: 'oric_verified' })
+  const recentPublications = await Publication.find({ status: 'oric_verified', ...pubFilter })
     .populate('departmentId', 'name')
     .populate('submittedBy', 'name')
     .sort({ createdAt: -1 })
@@ -153,6 +215,7 @@ const getInstitutionDashboard = catchAsync(async (req, res) => {
  */
 const getDepartmentDashboard = catchAsync(async (req, res) => {
   const department = await Department.findOne({ hodId: req.user._id });
+  const deptPubFilter = buildPublicationFilter(req);
   if (!department) {
     return success(res, null, 'No department assigned');
   }
@@ -167,23 +230,24 @@ const getDepartmentDashboard = catchAsync(async (req, res) => {
 
   // Department publications
   const pubStats = await Publication.aggregate([
-    { $match: { departmentId: department._id } },
+    { $match: { departmentId: department._id, ...deptPubFilter } },
     { $group: { _id: '$status', count: { $sum: 1 } } },
   ]);
 
   const verifiedPubs = await Publication.countDocuments({
     departmentId: department._id,
     status: 'oric_verified',
+    ...deptPubFilter,
   });
 
   const totalCitations = await Publication.aggregate([
-    { $match: { departmentId: department._id, status: 'oric_verified' } },
+    { $match: { departmentId: department._id, status: 'oric_verified', ...deptPubFilter } },
     { $group: { _id: null, total: { $sum: '$citationCount' } } },
   ]);
 
   // Publications by year
   const pubsByYear = await Publication.aggregate([
-    { $match: { departmentId: department._id, status: 'oric_verified', year: { $gte: currentYear - 9 } } },
+    { $match: { departmentId: department._id, status: 'oric_verified', year: { $gte: currentYear - 9 }, ...deptPubFilter } },
     { $group: { _id: '$year', count: { $sum: 1 }, citations: { $sum: '$citationCount' } } },
     { $sort: { _id: 1 } },
   ]);
@@ -200,22 +264,24 @@ const getDepartmentDashboard = catchAsync(async (req, res) => {
   const pendingHodReviews = await Publication.countDocuments({
     departmentId: department._id,
     status: 'submitted_to_hod',
+    ...deptPubFilter,
   });
 
   const pendingOricReviews = await Publication.countDocuments({
     departmentId: department._id,
     status: 'sent_to_oric',
+    ...deptPubFilter,
   });
 
   // Publications by type
   const pubsByType = await Publication.aggregate([
-    { $match: { departmentId: department._id, status: 'oric_verified' } },
+    { $match: { departmentId: department._id, status: 'oric_verified', ...deptPubFilter } },
     { $group: { _id: '$publicationType', count: { $sum: 1 } } },
   ]);
 
   // AI review stats for department
   const aiReviewStats = await Publication.aggregate([
-    { $match: { departmentId: department._id, 'aiReview.checkedAt': { $exists: true } } },
+    { $match: { departmentId: department._id, 'aiReview.checkedAt': { $exists: true }, ...deptPubFilter } },
     {
       $group: {
         _id: '$aiReview.virusScanStatus',
@@ -231,6 +297,7 @@ const getDepartmentDashboard = catchAsync(async (req, res) => {
   const recentPublications = await Publication.find({
     departmentId: department._id,
     status: 'oric_verified',
+    ...deptPubFilter,
   })
     .populate('submittedBy', 'name')
     .sort({ createdAt: -1 })

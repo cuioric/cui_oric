@@ -196,7 +196,7 @@ export function AdminUsersPage() {
       </div>
       <section className="panel mt-6">
         <div className="border-b px-5 py-4">
-          <h2 className="font-serif text-lg font-bold text-slate-900">
+          <h2 className="font-sans text-lg font-bold text-slate-900">
             Awaiting ORIC approval
           </h2>
         </div>
@@ -240,7 +240,7 @@ function AllUsers() {
     <section className="panel mt-6">
       <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-serif text-lg font-bold text-slate-900">
+          <h2 className="font-sans text-lg font-bold text-slate-900">
             User directory
           </h2>
           <p className="text-sm text-slate-500">
@@ -494,7 +494,7 @@ export function DepartmentsPage() {
           <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-3">
             {list.data.items.map((department) => (
               <article className="p-5" key={department._id}>
-                <h2 className="font-serif text-lg font-bold text-slate-900">
+                <h2 className="font-sans text-lg font-bold text-slate-900">
                   {department.name}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -599,7 +599,7 @@ function ReviewItem({ publication }: { publication: Publication }) {
         </div>
         <Link
           to={`/publications/${publication._id}`}
-          className="mt-2 block font-serif text-base font-bold text-slate-900 hover:text-brand-700"
+          className="mt-2 block font-sans text-base font-bold text-slate-900 hover:text-brand-700"
         >
           {publication.title}
         </Link>
@@ -719,14 +719,39 @@ export function ReviewQueuePage() {
   );
 }
 
+
 export function AnalyticsPage() {
   const { user } = useAuth();
+  const [duration, setDuration] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
+  const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
+  const [selectedType, setSelectedType] = useState<string[]>([]);
+  const [yearFrom, setYearFrom] = useState("");
+  const [yearTo, setYearTo] = useState("");
+
+  const departmentsQuery = useQuery({
+    queryKey: ["departments", "all"],
+    queryFn: () => departmentApi.list({ limit: 100 }),
+  });
+
   const data = useQuery({
-    queryKey: ["analytics", user?.role],
-    queryFn: () =>
-      user?.role === "oric_admin"
-        ? analyticsApi.institution()
-        : analyticsApi.department(),
+    queryKey: ["analytics", user?.role, duration, dateFrom, dateTo, selectedDepartments.join(","), selectedStatus.join(","), selectedType.join(","), yearFrom, yearTo],
+    queryFn: () => {
+      const params: Record<string, unknown> = {};
+      if (duration && duration !== "all") params.duration = duration;
+      if (dateFrom) params.dateFrom = dateFrom;
+      if (dateTo) params.dateTo = dateTo;
+      if (selectedDepartments.length) params.departmentId = selectedDepartments.join(",");
+      if (selectedStatus.length) params.status = selectedStatus.join(",");
+      if (selectedType.length) params.publicationType = selectedType.join(",");
+      if (yearFrom) params.yearFrom = yearFrom;
+      if (yearTo) params.yearTo = yearTo;
+      return user?.role === "oric_admin"
+        ? analyticsApi.institution(params)
+        : analyticsApi.department();
+    },
     enabled: user?.role === "oric_admin" || user?.role === "hod",
   });
 
@@ -745,10 +770,23 @@ export function AnalyticsPage() {
 
   const dashboard = data.data.data;
   const overview = dashboard.overview || {};
-  const max = Math.max(
+  const maxYear = Math.max(
     ...(dashboard.publicationsByYear || []).map((x) => x.count),
     1,
   );
+  const maxDept = Math.max(
+    ...(dashboard.publicationsByDepartment || []).map((x) => x.count),
+    1,
+  );
+  const maxType = Math.max(
+    ...(dashboard.publicationsByType || []).map((x) => x.count),
+    1,
+  );
+
+  const deptOptions = (departmentsQuery.data?.items || []).map((d) => ({
+    value: d._id,
+    label: `${d.name} (${d.campus})`,
+  }));
 
   return (
     <div className="page-shell">
@@ -760,14 +798,80 @@ export function AnalyticsPage() {
             : `${displayName(dashboard.department)} research performance and workflow activity.`}
         </p>
       </div>
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+
+      {/* Filters */}
+      <section className="panel panel-pad mt-6">
+        <h2 className="font-sans text-base font-bold text-slate-900 mb-4">Filters</h2>
+        <div className="space-y-5">
+          <div>
+            <label className="label">Duration</label>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "all", label: "All time" },
+                { value: "3m", label: "3 months" },
+                { value: "6m", label: "6 months" },
+                { value: "12m", label: "12 months" },
+                { value: "24m", label: "24 months" },
+                { value: "custom", label: "Custom" },
+              ].map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setDuration(opt.value)}
+                  className={`min-h-9 rounded-md border px-3 text-sm font-medium ${duration === opt.value ? "border-brand-700 bg-brand-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {duration === "custom" && (
+              <div className="mt-3 flex gap-3">
+                <input type="date" className="field w-44" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <input type="date" className="field w-44" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              </div>
+            )}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <MultiCheckGroup label="Department" options={deptOptions} selected={selectedDepartments} onChange={setSelectedDepartments} />
+            <MultiCheckGroup label="Status" options={statusOptions.map((o) => ({ value: o.value, label: o.label }))} selected={selectedStatus} onChange={setSelectedStatus} />
+            <MultiCheckGroup label="Publication type" options={publicationTypeOptions.map((t) => ({ value: t, label: t.replaceAll("_", " ") }))} selected={selectedType} onChange={setSelectedType} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Year from</label>
+                <input type="number" className="field" placeholder="2020" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Year to</label>
+                <input type="number" className="field" placeholder="2026" value={yearTo} onChange={(e) => setYearTo(e.target.value)} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Overview cards */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Active users", value: overview.activeUsers || 0, color: "bg-brand-700" },
+          { label: "Total publications", value: overview.totalPublications || 0, color: "bg-brand-600" },
+          { label: "Verified publications", value: overview.verifiedPublications || 0, color: "bg-brand-500" },
+          { label: "Total citations", value: overview.totalCitations || 0, color: "bg-brand-800" },
+        ].map((card) => (
+          <section className="panel panel-pad" key={card.label}>
+            <p className="text-sm text-slate-500">{card.label}</p>
+            <p className="mt-2 text-3xl font-extrabold text-slate-900">{card.value}</p>
+            <div className="mt-3 h-1 w-full rounded-full bg-slate-100 overflow-hidden">
+              <div className={`h-full rounded-full ${card.color}`} style={{ width: `${Math.min(100, (Number(card.value) / Math.max(Number(card.value) || 1, 50)) * 100)}%` }} />
+            </div>
+          </section>
+        ))}
         {Object.entries(overview)
-          .slice(0, 8)
+          .filter(([k]) => !["activeUsers", "totalPublications", "verifiedPublications", "totalCitations"].includes(k))
+          .slice(0, 4)
           .map(([key, value]) => (
             <section className="panel panel-pad" key={key}>
-              <p className="text-sm text-slate-500">
-                {key.replace(/([A-Z])/g, " $1")}
-              </p>
+              <p className="text-sm text-slate-500">{key.replace(/([A-Z])/g, " $1")}</p>
               <p className="mt-2 text-2xl font-bold text-slate-900">
                 {typeof value === "number"
                   ? Number.isInteger(value)
@@ -778,27 +882,31 @@ export function AnalyticsPage() {
             </section>
           ))}
       </div>
-      <div className="mt-6 grid gap-6 xl:grid-cols-2">
-        <section className="panel panel-pad">
+
+      {/* Main charts grid */}
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        {/* Publications by year - graphical bars */}
+        <section className="panel panel-pad xl:col-span-2">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-brand-700" />
-            <h2 className="font-serif text-xl font-bold text-slate-900">
-              Verified publications by year
-            </h2>
+            <h2 className="font-sans text-xl font-bold text-slate-900">Verified publications by year</h2>
           </div>
           {dashboard.publicationsByYear?.length ? (
-            <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-5">
               {dashboard.publicationsByYear.map((item) => (
-                <div key={item._id}>
-                  <div className="mb-1 flex justify-between text-sm">
-                    <span>{item._id}</span>
-                    <span className="font-semibold">{item.count}</span>
+                <div key={item._id} className="group">
+                  <div className="mb-2 flex justify-between text-sm font-medium">
+                    <span className="text-slate-700">{item._id}</span>
+                    <span className="text-brand-700">{item.count} publications</span>
                   </div>
-                  <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div className="relative h-8 overflow-hidden rounded-lg bg-slate-100">
                     <div
-                      className="h-full rounded-full bg-brand-700"
-                      style={{ width: `${(item.count / max) * 100}%` }}
+                      className="absolute left-0 top-0 h-full rounded-lg bg-gradient-to-r from-brand-600 to-brand-800 transition-all duration-500"
+                      style={{ width: `${(item.count / maxYear) * 100}%` }}
                     />
+                    <div className="absolute inset-0 flex items-center px-3">
+                      <span className="text-xs font-bold text-white drop-shadow">{item.citations ? `${item.citations} citations` : `${item.count}`}</span>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -807,33 +915,206 @@ export function AnalyticsPage() {
             <EmptyBlock title="No verified publication data" />
           )}
         </section>
+
+        {/* Publications by status - donut-like visual */}
         <section className="panel panel-pad">
-          <h2 className="font-serif text-xl font-bold text-slate-900">
-            Publication status
-          </h2>
+          <h2 className="font-sans text-xl font-bold text-slate-900">Publication status</h2>
           {dashboard.publicationsByStatus?.length ? (
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {dashboard.publicationsByStatus.map((item) => (
-                <div
-                  key={item._id}
-                  className="flex items-center justify-between rounded-lg bg-slate-50 p-3"
-                >
-                  <StatusBadge status={item._id} />
-                  <span className="text-lg font-bold text-slate-900">
-                    {item.count}
-                  </span>
+            <>
+              <div className="mt-6 flex flex-wrap gap-3 justify-center">
+                {dashboard.publicationsByStatus.map((item) => (
+                  <div key={item._id} className="flex flex-col items-center">
+                    <div className="h-20 w-20 rounded-full bg-brand-50 border-4 border-brand-200 flex items-center justify-center">
+                      <span className="text-2xl font-extrabold text-brand-700">{item.count}</span>
+                    </div>
+                    <span className="mt-2 text-xs font-semibold text-slate-600">{(item._id as string).replaceAll("_", " ")}</span>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-6 space-y-3">
+                {dashboard.publicationsByStatus.map((item) => (
+                  <div key={item._id} className="flex items-center gap-3">
+                    <StatusBadge status={item._id} />
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
+                      <div className="h-full rounded-full bg-brand-600" style={{ width: `${(item.count / Math.max(...(dashboard.publicationsByStatus || []).map((i) => i.count))) * 100}%` }} />
+                    </div>
+                    <span className="text-xs font-bold text-slate-700 w-6 text-right">{item.count}</span>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <EmptyBlock title="No publication data" />
+          )}
+        </section>
+      </div>
+
+      {/* Publications by department - bar chart */}
+      <section className="panel panel-pad mt-6">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-5 w-5 text-brand-700" />
+          <h2 className="font-sans text-xl font-bold text-slate-900">Publications by department</h2>
+        </div>
+        {dashboard.publicationsByDepartment?.length ? (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {dashboard.publicationsByDepartment.map((item) => (
+              <div key={item.department || item._id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                <h3 className="font-sans text-base font-bold text-slate-900">{item.department || "Unknown"}</h3>
+                <p className="text-xs text-slate-500">{item.campus} campus</p>
+                <div className="mt-3 h-3 overflow-hidden rounded-full bg-white shadow-inner">
+                  <div className="h-full rounded-full bg-gradient-to-r from-brand-500 to-brand-700" style={{ width: `${(item.count / maxDept) * 100}%` }} />
+                </div>
+                <div className="mt-2 flex justify-between text-sm font-bold text-slate-800">
+                  <span>{item.count} verified</span>
+                  <span className="text-brand-700">{item.citations || 0} citations</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyBlock title="No department-level publication data" />
+        )}
+      </section>
+
+      {/* Publications by type - horizontal bars */}
+      <section className="panel panel-pad mt-6">
+        <h2 className="font-sans text-xl font-bold text-slate-900">Publications by type</h2>
+        {dashboard.publicationsByType?.length ? (
+          <div className="mt-6 space-y-4">
+            {dashboard.publicationsByType.map((item) => (
+              <div key={item._id} className="flex items-center gap-4">
+                <span className="w-32 text-sm font-medium text-slate-700">{(item._id as string).replaceAll("_", " ")}</span>
+                <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+                  <div className="h-full rounded-full bg-brand-500" style={{ width: `${(item.count / maxType) * 100}%` }} />
+                </div>
+                <span className="w-8 text-right text-sm font-bold text-slate-800">{item.count}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyBlock title="No publication type data" />
+        )}
+      </section>
+
+      {/* Review workload + Citation stats + AI review + Recent activity */}
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <section className="panel panel-pad">
+          <h2 className="font-sans text-xl font-bold text-slate-900">Review workload</h2>
+          <div className="mt-5 space-y-4">
+            <div>
+              <div className="flex justify-between text-sm font-medium text-slate-600">
+                <span>Pending HOD reviews</span>
+                <span>{dashboard.reviewWorkload?.pendingHodReviews || 0}</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-amber-500" style={{ width: `${Math.min(100, ((dashboard.reviewWorkload?.pendingHodReviews || 0) / Math.max(1, (dashboard.reviewWorkload?.pendingHodReviews || 0) + (dashboard.reviewWorkload?.pendingOricReviews || 0))) * 100)}%` }} />
+              </div>
+            </div>
+            <div>
+              <div className="flex justify-between text-sm font-medium text-slate-600">
+                <span>Pending ORIC reviews</span>
+                <span>{dashboard.reviewWorkload?.pendingOricReviews || 0}</span>
+              </div>
+              <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="h-full rounded-full bg-brand-700" style={{ width: `${Math.min(100, ((dashboard.reviewWorkload?.pendingOricReviews || 0) / Math.max(1, (dashboard.reviewWorkload?.pendingOricReviews || 0) + (dashboard.reviewWorkload?.pendingHodReviews || 0))) * 100)}%` }} />
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="panel panel-pad">
+          <h2 className="font-sans text-xl font-bold text-slate-900">Citation statistics</h2>
+          {dashboard.citationStats ? (
+            <div className="mt-5 space-y-4">
+              {[
+                { label: "Total citation links", value: dashboard.citationStats.totalLinks || 0 },
+                { label: "External citations", value: dashboard.citationStats.externalCitations || 0 },
+                { label: "Internal citations", value: dashboard.citationStats.internalCitations || 0 },
+              ].map((item) => (
+                <div key={item.label}>
+                  <div className="flex justify-between text-sm font-medium text-slate-600">
+                    <span>{item.label}</span>
+                    <span className="font-bold text-slate-900">{item.value}</span>
+                  </div>
+                  <div className="mt-1 h-3 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-gradient-to-r from-brand-400 to-brand-700" style={{ width: `${Math.min(100, (item.value / Math.max(1, (dashboard.citationStats?.totalLinks || 1))) * 100)}%` }} />
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <EmptyBlock title="No publication data" />
+            <EmptyBlock title="No citation data" />
+          )}
+        </section>
+
+        <section className="panel panel-pad">
+          <h2 className="font-sans text-xl font-bold text-slate-900">AI review stats</h2>
+          {dashboard.aiReviewStats?.length ? (
+            <div className="mt-5 space-y-3">
+              {dashboard.aiReviewStats.map((item) => (
+                <div key={item._id} className="rounded-lg bg-slate-50 p-3">
+                  <div className="flex justify-between text-sm font-semibold text-slate-700">
+                    <span>{item._id || "Unknown"}</span>
+                    <span>{item.count}</span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
+                    <span>Readability: {item.avgReadability ? (item.avgReadability as number).toFixed(1) : "—"}</span>
+                    <span>Grammar: {item.avgGrammarIssues ? (item.avgGrammarIssues as number).toFixed(1) : "—"}</span>
+                    <span>Passive: {item.avgPassiveVoice ? (item.avgPassiveVoice as number).toFixed(1) : "—"}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyBlock title="No AI review data" />
+          )}
+        </section>
+      </div>
+
+      {/* User role distribution + Recent activity */}
+      <div className="mt-6 grid gap-6 xl:grid-cols-3">
+        <section className="panel panel-pad xl:col-span-2">
+          <h2 className="font-sans text-xl font-bold text-slate-900">User role distribution</h2>
+          {dashboard.usersByRole?.length ? (
+            <div className="mt-5 space-y-4">
+              {dashboard.usersByRole.map((item) => (
+                <div key={item._id} className="flex items-center gap-4">
+                  <span className="w-32 text-sm font-medium text-slate-700 capitalize">{String(item._id).replaceAll("_", " ")}</span>
+                  <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, (item.count / Math.max(...(dashboard.usersByRole || []).map((i) => i.count))) * 100)}%` }} />
+                  </div>
+                  <span className="w-8 text-right text-sm font-bold text-slate-800">{item.count}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyBlock title="No user role data" />
+          )}
+        </section>
+
+        <section className="panel panel-pad">
+          <h2 className="font-sans text-xl font-bold text-slate-900">Recent verified publications</h2>
+          {dashboard.recentActivity?.length ? (
+            <div className="mt-4 divide-y">
+              {dashboard.recentActivity.map((pub: Publication) => (
+                <Link to={`/publications/${pub._id}`} key={pub._id} className="block py-3 hover:bg-slate-50 -mx-2 px-2 rounded-lg transition-colors">
+                  <h3 className="font-sans text-sm font-bold text-slate-900 hover:text-brand-700 line-clamp-1">{pub.title}</h3>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                    <span>{pub.year}</span>
+                    <span>·</span>
+                    <span>{pub.publicationType?.replaceAll("_", " ")}</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <EmptyBlock title="No recent activity" />
           )}
         </section>
       </div>
     </div>
   );
 }
-
 const timeframeOptions = [
   { value: "all", label: "All time" },
   { value: "3m", label: "Last 3 months" },

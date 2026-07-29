@@ -657,14 +657,14 @@ export function PublicationDetailPage() {
           )}
 
           <section className="panel panel-pad">
-            <h2 className="font-serif text-xl font-bold text-slate-900">
+            <h2 className="font-sans text-xl font-bold text-slate-900">
               Abstract
             </h2>
             <p className="mt-4 whitespace-pre-line text-sm leading-7 text-slate-700">
               {publication.abstract || "No abstract provided."}
             </p>
 
-            <h2 className="mt-7 font-serif text-xl font-bold text-slate-900">
+            <h2 className="mt-7 font-sans text-xl font-bold text-slate-900">
               Publication details
             </h2>
             <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-2">
@@ -731,7 +731,7 @@ export function PublicationDetailPage() {
 
           {!isPublicView && user && (
             <section className="panel panel-pad">
-              <h2 className="font-serif text-xl font-bold text-slate-900">
+              <h2 className="font-sans text-xl font-bold text-slate-900">
                 Citation network
               </h2>
               {citations.isLoading ? (
@@ -750,7 +750,7 @@ export function PublicationDetailPage() {
               ) : (
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <section className="panel panel-pad">
-                    <h3 className="font-serif text-lg font-bold text-slate-900">
+                    <h3 className="font-sans text-lg font-bold text-slate-900">
                       Cited by ({incoming.length})
                     </h3>
                     <ul className="mt-4 space-y-3">
@@ -764,7 +764,7 @@ export function PublicationDetailPage() {
                     </ul>
                   </section>
                   <section className="panel panel-pad">
-                    <h3 className="font-serif text-lg font-bold text-slate-900">
+                    <h3 className="font-sans text-lg font-bold text-slate-900">
                       References ({outgoing.length})
                     </h3>
                     <ul className="mt-4 space-y-3">
@@ -785,7 +785,7 @@ export function PublicationDetailPage() {
 
         <aside className="space-y-6">
           <section className="panel panel-pad">
-            <h2 className="font-serif text-lg font-bold text-slate-900">
+            <h2 className="font-sans text-lg font-bold text-slate-900">
               Authors
             </h2>
             <ol className="mt-4 space-y-3">
@@ -818,7 +818,7 @@ export function PublicationDetailPage() {
           {/* {hide review history for public */}
           {!isPublicView && (
             <section className="panel panel-pad">
-              <h2 className="font-serif text-lg font-bold text-slate-900">
+              <h2 className="font-sans text-lg font-bold text-slate-900">
                 Review history
               </h2>
               <div className="mt-5">
@@ -829,7 +829,7 @@ export function PublicationDetailPage() {
 
           {isPublicView && (
             <section className="panel panel-pad bg-brand-50 border-brand-200">
-              <h2 className="font-serif text-lg font-bold text-brand-900">
+              <h2 className="font-sans text-lg font-bold text-brand-900">
                 ORIC-Verified Record
               </h2>
               <p className="mt-2 text-sm text-brand-800">
@@ -1229,7 +1229,7 @@ export function PublicationEditorPage() {
       >
         <div className="space-y-6">
           <section className="panel panel-pad">
-            <h2 className="font-serif text-xl font-bold text-slate-900">
+            <h2 className="font-sans text-xl font-bold text-slate-900">
               Publication record
             </h2>
             <div className="mt-5 space-y-4">
@@ -1334,7 +1334,7 @@ export function PublicationEditorPage() {
           </section>
 
           <section className="panel panel-pad">
-            <h2 className="font-serif text-xl font-bold text-slate-900">
+            <h2 className="font-sans text-xl font-bold text-slate-900">
               Venue
             </h2>
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -1413,7 +1413,7 @@ export function PublicationEditorPage() {
           <section className="panel panel-pad">
             <div className="flex items-center justify-between">
               <div>
-                <h2 className="font-serif text-xl font-bold text-slate-900">
+                <h2 className="font-sans text-xl font-bold text-slate-900">
                   External co-authors
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -1484,7 +1484,7 @@ export function PublicationEditorPage() {
               publication.status,
             ) && <PdfUploader publication={publication} />}
           <section className="panel panel-pad">
-            <h2 className="font-serif text-lg font-bold text-slate-900">
+            <h2 className="font-sans text-lg font-bold text-slate-900">
               Before submission
             </h2>
             <p className="mt-3 text-sm leading-6 text-slate-600">
