@@ -279,6 +279,27 @@ const getDepartmentDashboard = catchAsync(async (req, res) => {
     { $group: { _id: '$publicationType', count: { $sum: 1 } } },
   ]);
 
+  // Publications by department (for HOD view, shows their department)
+  const pubsByDept = await Publication.aggregate([
+    { $match: { departmentId: department._id, status: 'oric_verified', ...deptPubFilter } },
+    { $group: { _id: '$departmentId', count: { $sum: 1 }, citations: { $sum: '$citationCount' } } },
+    {
+      $lookup: {
+        from: 'departments',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'dept',
+      },
+    },
+    { $unwind: '$dept' },
+    { $project: { department: '$dept.name', campus: '$dept.campus', count: 1, citations: 1 } },
+  ]);
+
+  // Citation statistics (same calculation as institution endpoint)
+  const totalCitationLinks = await Citation.countDocuments();
+  const externalCitations = await Citation.countDocuments({ citingPaperId: null });
+  const internalCitations = await Citation.countDocuments({ citingPaperId: { $ne: null } });
+
   // AI review stats for department
   const aiReviewStats = await Publication.aggregate([
     { $match: { departmentId: department._id, 'aiReview.checkedAt': { $exists: true }, ...deptPubFilter } },
@@ -309,6 +330,7 @@ const getDepartmentDashboard = catchAsync(async (req, res) => {
     department: { id: department._id, name: department.name, campus: department.campus },
     overview: {
       totalUsers: userStats.reduce((sum, s) => sum + s.count, 0),
+      activeUsers: userStats.reduce((sum, s) => sum + s.count, 0),
       facultyCount: userStats.find((s) => s._id === 'faculty')?.count || 0,
       msStudents: userStats.find((s) => s._id === 'ms_student')?.count || 0,
       phdStudents: userStats.find((s) => s._id === 'phd_student')?.count || 0,
@@ -321,12 +343,18 @@ const getDepartmentDashboard = catchAsync(async (req, res) => {
     publicationsByStatus: pubStats,
     publicationsByYear: pubsByYear,
     publicationsByType: pubsByType,
+    publicationsByDepartment: pubsByDept,
     topAuthors,
     reviewWorkload: {
       pendingHodReviews,
       pendingOricReviews,
     },
     aiReviewStats,
+    citationStats: {
+      totalLinks: totalCitationLinks,
+      externalCitations,
+      internalCitations,
+    },
     recentActivity: recentPublications,
   }, 'Department dashboard retrieved');
 });
