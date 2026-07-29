@@ -196,7 +196,7 @@ export function AdminUsersPage() {
       </div>
       <section className="panel mt-6">
         <div className="border-b px-5 py-4">
-          <h2 className="font-sans text-lg font-bold text-slate-900">
+          <h2 className="font-serif text-lg font-bold text-slate-900">
             Awaiting ORIC approval
           </h2>
         </div>
@@ -240,7 +240,7 @@ function AllUsers() {
     <section className="panel mt-6">
       <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-sans text-lg font-bold text-slate-900">
+          <h2 className="font-serif text-lg font-bold text-slate-900">
             User directory
           </h2>
           <p className="text-sm text-slate-500">
@@ -494,7 +494,7 @@ export function DepartmentsPage() {
           <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-3">
             {list.data.items.map((department) => (
               <article className="p-5" key={department._id}>
-                <h2 className="font-sans text-lg font-bold text-slate-900">
+                <h2 className="font-serif text-lg font-bold text-slate-900">
                   {department.name}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -599,7 +599,7 @@ function ReviewItem({ publication }: { publication: Publication }) {
         </div>
         <Link
           to={`/publications/${publication._id}`}
-          className="mt-2 block font-sans text-base font-bold text-slate-900 hover:text-brand-700"
+          className="mt-2 block font-serif text-base font-bold text-slate-900 hover:text-brand-700"
         >
           {publication.title}
         </Link>
@@ -719,15 +719,14 @@ export function ReviewQueuePage() {
   );
 }
 
-
 export function AnalyticsPage() {
   const { user } = useAuth();
-  const [duration, setDuration] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [selectedStatus, setSelectedStatus] = useState<string[]>([]);
   const [selectedType, setSelectedType] = useState<string[]>([]);
+  const [duration, setDuration] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
 
@@ -770,16 +769,17 @@ export function AnalyticsPage() {
 
   const dashboard = data.data.data;
   const overview = dashboard.overview || {};
+
   const maxYear = Math.max(
-    ...(dashboard.publicationsByYear || []).map((x) => x.count),
+    ...(dashboard.publicationsByYear || []).map((x: { count: number }) => x.count),
     1,
   );
   const maxDept = Math.max(
-    ...(dashboard.publicationsByDepartment || []).map((x) => x.count),
+    ...(dashboard.publicationsByDepartment || []).map((x: { count: number }) => x.count),
     1,
   );
   const maxType = Math.max(
-    ...(dashboard.publicationsByType || []).map((x) => x.count),
+    ...(dashboard.publicationsByType || []).map((x: { count: number }) => x.count),
     1,
   );
 
@@ -799,53 +799,100 @@ export function AnalyticsPage() {
         </p>
       </div>
 
-      {/* Filters */}
+      {/* Beautiful dropdown filters */}
       <section className="panel panel-pad mt-6">
         <h2 className="font-sans text-base font-bold text-slate-900 mb-4">Filters</h2>
-        <div className="space-y-5">
+        <div className="grid gap-4 lg:grid-cols-4">
           <div>
             <label className="label">Duration</label>
-            <div className="flex flex-wrap gap-2">
-              {[
-                { value: "all", label: "All time" },
-                { value: "3m", label: "3 months" },
-                { value: "6m", label: "6 months" },
-                { value: "12m", label: "12 months" },
-                { value: "24m", label: "24 months" },
-                { value: "custom", label: "Custom" },
-              ].map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => setDuration(opt.value)}
-                  className={`min-h-9 rounded-md border px-3 text-sm font-medium ${duration === opt.value ? "border-brand-700 bg-brand-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
-                >
-                  {opt.label}
-                </button>
-              ))}
-            </div>
+            <select
+              className="field"
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+            >
+              <option value="all">All time</option>
+              <option value="3m">Last 3 months</option>
+              <option value="6m">Last 6 months</option>
+              <option value="12m">Last 12 months</option>
+              <option value="24m">Last 24 months</option>
+              <option value="custom">Custom range</option>
+            </select>
             {duration === "custom" && (
-              <div className="mt-3 flex gap-3">
-                <input type="date" className="field w-44" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                <input type="date" className="field w-44" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+              <div className="mt-2 flex gap-2">
+                <input type="date" className="field w-28 text-xs" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} placeholder="From" />
+                <input type="date" className="field w-28 text-xs" value={dateTo} onChange={(e) => setDateTo(e.target.value)} placeholder="To" />
               </div>
             )}
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <MultiCheckGroup label="Department" options={deptOptions} selected={selectedDepartments} onChange={setSelectedDepartments} />
-            <MultiCheckGroup label="Status" options={statusOptions.map((o) => ({ value: o.value, label: o.label }))} selected={selectedStatus} onChange={setSelectedStatus} />
-            <MultiCheckGroup label="Publication type" options={publicationTypeOptions.map((t) => ({ value: t, label: t.replaceAll("_", " ") }))} selected={selectedType} onChange={setSelectedType} />
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="label">Year from</label>
-                <input type="number" className="field" placeholder="2020" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} />
-              </div>
-              <div>
-                <label className="label">Year to</label>
-                <input type="number" className="field" placeholder="2026" value={yearTo} onChange={(e) => setYearTo(e.target.value)} />
-              </div>
-            </div>
+          <div>
+            <label className="label">Department</label>
+            <select
+              className="field"
+              multiple
+              value={selectedDepartments}
+              onChange={(e) => {
+                const vals = Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value);
+                setSelectedDepartments(vals);
+              }}
+            >
+              {deptOptions.map((d) => (
+                <option key={d.value} value={d.value}>{d.label}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs text-slate-400">Hold Ctrl/Cmd to select multiple</p>
+          </div>
+
+          <div>
+            <label className="label">Status</label>
+            <select
+              className="field"
+              multiple
+              value={selectedStatus}
+              onChange={(e) => {
+                const vals = Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value);
+                setSelectedStatus(vals);
+              }}
+            >
+              <option value="submitted_to_hod">With HOD</option>
+              <option value="hod_rejected">HOD returned</option>
+              <option value="sent_to_oric">With ORIC</option>
+              <option value="oric_rejected">ORIC returned</option>
+              <option value="oric_verified">Verified</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-400">Hold Ctrl/Cmd to select multiple</p>
+          </div>
+
+          <div>
+            <label className="label">Publication type</label>
+            <select
+              className="field"
+              multiple
+              value={selectedType}
+              onChange={(e) => {
+                const vals = Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value);
+                setSelectedType(vals);
+              }}
+            >
+              <option value="journal_article">Journal article</option>
+              <option value="conference_paper">Conference paper</option>
+              <option value="book">Book</option>
+              <option value="book_chapter">Book chapter</option>
+              <option value="thesis">Thesis</option>
+              <option value="preprint">Preprint</option>
+              <option value="patent">Patent</option>
+            </select>
+            <p className="mt-1 text-xs text-slate-400">Hold Ctrl/Cmd to select multiple</p>
+          </div>
+        </div>
+        <div className="mt-4 flex gap-3">
+          <div>
+            <label className="label">Year from</label>
+            <input type="number" className="field w-28" placeholder="2020" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Year to</label>
+            <input type="number" className="field w-28" placeholder="2026" value={yearTo} onChange={(e) => setYearTo(e.target.value)} />
           </div>
         </div>
       </section>
@@ -883,9 +930,8 @@ export function AnalyticsPage() {
           ))}
       </div>
 
-      {/* Main charts grid */}
+      {/* Main charts */}
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
-        {/* Publications by year - graphical bars */}
         <section className="panel panel-pad xl:col-span-2">
           <div className="flex items-center gap-2">
             <BarChart3 className="h-5 w-5 text-brand-700" />
@@ -916,7 +962,6 @@ export function AnalyticsPage() {
           )}
         </section>
 
-        {/* Publications by status - donut-like visual */}
         <section className="panel panel-pad">
           <h2 className="font-sans text-xl font-bold text-slate-900">Publication status</h2>
           {dashboard.publicationsByStatus?.length ? (
@@ -936,7 +981,7 @@ export function AnalyticsPage() {
                   <div key={item._id} className="flex items-center gap-3">
                     <StatusBadge status={item._id} />
                     <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-100">
-                      <div className="h-full rounded-full bg-brand-600" style={{ width: `${(item.count / Math.max(...(dashboard.publicationsByStatus || []).map((i) => i.count))) * 100}%` }} />
+                      <div className="h-full rounded-full bg-brand-600" style={{ width: `${(item.count / Math.max(...(dashboard.publicationsByStatus || []).map((i: { count: number }) => i.count))) * 100}%` }} />
                     </div>
                     <span className="text-xs font-bold text-slate-700 w-6 text-right">{item.count}</span>
                   </div>
@@ -949,7 +994,6 @@ export function AnalyticsPage() {
         </section>
       </div>
 
-      {/* Publications by department - bar chart */}
       <section className="panel panel-pad mt-6">
         <div className="flex items-center gap-2">
           <BarChart3 className="h-5 w-5 text-brand-700" />
@@ -957,7 +1001,7 @@ export function AnalyticsPage() {
         </div>
         {dashboard.publicationsByDepartment?.length ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {dashboard.publicationsByDepartment.map((item) => (
+            {dashboard.publicationsByDepartment.map((item: { _id?: string; department?: string; campus?: string; count: number; citations?: number }) => (
               <div key={item.department || item._id} className="rounded-xl border border-slate-100 bg-slate-50 p-4">
                 <h3 className="font-sans text-base font-bold text-slate-900">{item.department || "Unknown"}</h3>
                 <p className="text-xs text-slate-500">{item.campus} campus</p>
@@ -976,7 +1020,6 @@ export function AnalyticsPage() {
         )}
       </section>
 
-      {/* Publications by type - horizontal bars */}
       <section className="panel panel-pad mt-6">
         <h2 className="font-sans text-xl font-bold text-slate-900">Publications by type</h2>
         {dashboard.publicationsByType?.length ? (
@@ -996,7 +1039,6 @@ export function AnalyticsPage() {
         )}
       </section>
 
-      {/* Review workload + Citation stats + AI review + Recent activity */}
       <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <section className="panel panel-pad">
           <h2 className="font-sans text-xl font-bold text-slate-900">Review workload</h2>
@@ -1047,41 +1089,15 @@ export function AnalyticsPage() {
           )}
         </section>
 
-        <section className="panel panel-pad">
-          <h2 className="font-sans text-xl font-bold text-slate-900">AI review stats</h2>
-          {dashboard.aiReviewStats?.length ? (
-            <div className="mt-5 space-y-3">
-              {dashboard.aiReviewStats.map((item) => (
-                <div key={item._id} className="rounded-lg bg-slate-50 p-3">
-                  <div className="flex justify-between text-sm font-semibold text-slate-700">
-                    <span>{item._id || "Unknown"}</span>
-                    <span>{item.count}</span>
-                  </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2 text-xs text-slate-500">
-                    <span>Readability: {item.avgReadability ? (item.avgReadability as number).toFixed(1) : "—"}</span>
-                    <span>Grammar: {item.avgGrammarIssues ? (item.avgGrammarIssues as number).toFixed(1) : "—"}</span>
-                    <span>Passive: {item.avgPassiveVoice ? (item.avgPassiveVoice as number).toFixed(1) : "—"}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <EmptyBlock title="No AI review data" />
-          )}
-        </section>
-      </div>
-
-      {/* User role distribution + Recent activity */}
-      <div className="mt-6 grid gap-6 xl:grid-cols-3">
         <section className="panel panel-pad xl:col-span-2">
           <h2 className="font-sans text-xl font-bold text-slate-900">User role distribution</h2>
           {dashboard.usersByRole?.length ? (
             <div className="mt-5 space-y-4">
-              {dashboard.usersByRole.map((item) => (
+              {dashboard.usersByRole.map((item: { _id: string; count: number }) => (
                 <div key={item._id} className="flex items-center gap-4">
                   <span className="w-32 text-sm font-medium text-slate-700 capitalize">{String(item._id).replaceAll("_", " ")}</span>
                   <div className="h-3 flex-1 overflow-hidden rounded-full bg-slate-100">
-                    <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, (item.count / Math.max(...(dashboard.usersByRole || []).map((i) => i.count))) * 100)}%` }} />
+                    <div className="h-full rounded-full bg-brand-600" style={{ width: `${Math.min(100, (item.count / Math.max(...(dashboard.usersByRole || []).map((i: { count: number }) => i.count))) * 100)}%` }} />
                   </div>
                   <span className="w-8 text-right text-sm font-bold text-slate-800">{item.count}</span>
                 </div>
