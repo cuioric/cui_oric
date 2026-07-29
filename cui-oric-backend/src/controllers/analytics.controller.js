@@ -295,10 +295,23 @@ const getDepartmentDashboard = catchAsync(async (req, res) => {
     { $project: { department: '$dept.name', campus: '$dept.campus', count: 1, citations: 1 } },
   ]);
 
-  // Citation statistics (same calculation as institution endpoint)
-  const totalCitationLinks = await Citation.countDocuments();
-  const externalCitations = await Citation.countDocuments({ citingPaperId: null });
-  const internalCitations = await Citation.countDocuments({ citingPaperId: { $ne: null } });
+  // Citation statistics — filtered to this department's publications only
+  const deptPublicationIds = await Publication.find({ departmentId: department._id })
+    .select('_id')
+    .lean()
+    .then((pubs) => pubs.map((p) => p._id));
+
+  const totalCitationLinks = await Citation.countDocuments({
+    citedPaperId: { $in: deptPublicationIds },
+  });
+  const externalCitations = await Citation.countDocuments({
+    citedPaperId: { $in: deptPublicationIds },
+    citingPaperId: null,
+  });
+  const internalCitations = await Citation.countDocuments({
+    citedPaperId: { $in: deptPublicationIds },
+    citingPaperId: { $ne: null },
+  });
 
   // AI review stats for department
   const aiReviewStats = await Publication.aggregate([
