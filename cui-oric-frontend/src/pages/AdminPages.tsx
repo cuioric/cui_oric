@@ -196,7 +196,7 @@ export function AdminUsersPage() {
       </div>
       <section className="panel mt-6">
         <div className="border-b px-5 py-4">
-          <h2 className="font-serif text-lg font-bold text-slate-900">
+          <h2 className="font-sans text-lg font-bold text-slate-900">
             Awaiting ORIC approval
           </h2>
         </div>
@@ -240,7 +240,7 @@ function AllUsers() {
     <section className="panel mt-6">
       <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="font-serif text-lg font-bold text-slate-900">
+          <h2 className="font-sans text-lg font-bold text-slate-900">
             User directory
           </h2>
           <p className="text-sm text-slate-500">
@@ -494,7 +494,7 @@ export function DepartmentsPage() {
           <div className="grid divide-y sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-3">
             {list.data.items.map((department) => (
               <article className="p-5" key={department._id}>
-                <h2 className="font-serif text-lg font-bold text-slate-900">
+                <h2 className="font-sans text-lg font-bold text-slate-900">
                   {department.name}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
@@ -599,7 +599,7 @@ function ReviewItem({ publication }: { publication: Publication }) {
         </div>
         <Link
           to={`/publications/${publication._id}`}
-          className="mt-2 block font-serif text-base font-bold text-slate-900 hover:text-brand-700"
+          className="mt-2 block font-sans text-base font-bold text-slate-900 hover:text-brand-700"
         >
           {publication.title}
         </Link>
@@ -730,23 +730,33 @@ export function AnalyticsPage() {
   const [yearFrom, setYearFrom] = useState("");
   const [yearTo, setYearTo] = useState("");
 
+  // Applied filters (only update on Apply click)
+  const [appliedDepartments, setAppliedDepartments] = useState<string[]>([]);
+  const [appliedStatus, setAppliedStatus] = useState<string[]>([]);
+  const [appliedType, setAppliedType] = useState<string[]>([]);
+  const [appliedDuration, setAppliedDuration] = useState("all");
+  const [appliedDateFrom, setAppliedDateFrom] = useState("");
+  const [appliedDateTo, setAppliedDateTo] = useState("");
+  const [appliedYearFrom, setAppliedYearFrom] = useState("");
+  const [appliedYearTo, setAppliedYearTo] = useState("");
+
   const departmentsQuery = useQuery({
     queryKey: ["departments", "all"],
     queryFn: () => departmentApi.list({ limit: 100 }),
   });
 
   const data = useQuery({
-    queryKey: ["analytics", user?.role, duration, dateFrom, dateTo, selectedDepartments.join(","), selectedStatus.join(","), selectedType.join(","), yearFrom, yearTo],
+    queryKey: ["analytics", user?.role, appliedDuration, appliedDateFrom, appliedDateTo, appliedDepartments.join(","), appliedStatus.join(","), appliedType.join(","), appliedYearFrom, appliedYearTo],
     queryFn: () => {
       const params: Record<string, unknown> = {};
-      if (duration && duration !== "all") params.duration = duration;
-      if (dateFrom) params.dateFrom = dateFrom;
-      if (dateTo) params.dateTo = dateTo;
-      if (selectedDepartments.length) params.departmentId = selectedDepartments.join(",");
-      if (selectedStatus.length) params.status = selectedStatus.join(",");
-      if (selectedType.length) params.publicationType = selectedType.join(",");
-      if (yearFrom) params.yearFrom = yearFrom;
-      if (yearTo) params.yearTo = yearTo;
+      if (appliedDuration && appliedDuration !== "all") params.duration = appliedDuration;
+      if (appliedDateFrom) params.dateFrom = appliedDateFrom;
+      if (appliedDateTo) params.dateTo = appliedDateTo;
+      if (appliedDepartments.length) params.departmentId = appliedDepartments.join(",");
+      if (appliedStatus.length) params.status = appliedStatus.join(",");
+      if (appliedType.length) params.publicationType = appliedType.join(",");
+      if (appliedYearFrom) params.yearFrom = appliedYearFrom;
+      if (appliedYearTo) params.yearTo = appliedYearTo;
       return user?.role === "oric_admin"
         ? analyticsApi.institution(params)
         : analyticsApi.department();
@@ -799,101 +809,88 @@ export function AnalyticsPage() {
         </p>
       </div>
 
-      {/* Beautiful dropdown filters */}
+      {/* Beautiful multi-select filters */}
       <section className="panel panel-pad mt-6">
         <h2 className="font-sans text-base font-bold text-slate-900 mb-4">Filters</h2>
-        <div className="grid gap-4 lg:grid-cols-4">
+        <div className="space-y-5">
           <div>
             <label className="label">Duration</label>
-            <select
-              className="field"
-              value={duration}
-              onChange={(e) => setDuration(e.target.value)}
-            >
-              <option value="all">All time</option>
-              <option value="3m">Last 3 months</option>
-              <option value="6m">Last 6 months</option>
-              <option value="12m">Last 12 months</option>
-              <option value="24m">Last 24 months</option>
-              <option value="custom">Custom range</option>
-            </select>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "all", label: "All time" },
+                { value: "3m", label: "3 months" },
+                { value: "6m", label: "6 months" },
+                { value: "12m", label: "12 months" },
+                { value: "24m", label: "24 months" },
+                { value: "custom", label: "Custom" },
+              ].map((opt) => (
+                <button
+                  type="button"
+                  key={opt.value}
+                  onClick={() => setDuration(opt.value)}
+                  className={`min-h-9 rounded-md border px-3 text-sm font-medium ${duration === opt.value ? "border-brand-700 bg-brand-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"}`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
             {duration === "custom" && (
-              <div className="mt-2 flex gap-2">
-                <input type="date" className="field w-28 text-xs" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} placeholder="From" />
-                <input type="date" className="field w-28 text-xs" value={dateTo} onChange={(e) => setDateTo(e.target.value)} placeholder="To" />
+              <div className="mt-3 flex gap-3">
+                <input type="date" className="field w-44" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                <input type="date" className="field w-44" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
               </div>
             )}
           </div>
 
-          <div>
-            <label className="label">Department</label>
-            <select
-              className="field"
-              multiple
-              value={selectedDepartments}
-              onChange={(e) => {
-                const vals = Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value);
-                setSelectedDepartments(vals);
-              }}
-            >
-              {deptOptions.map((d) => (
-                <option key={d.value} value={d.value}>{d.label}</option>
-              ))}
-            </select>
-            <p className="mt-1 text-xs text-slate-400">Hold Ctrl/Cmd to select multiple</p>
-          </div>
+          <MultiCheckGroup
+            label="Department"
+            options={deptOptions}
+            selected={selectedDepartments}
+            onChange={setSelectedDepartments}
+          />
 
-          <div>
-            <label className="label">Status</label>
-            <select
-              className="field"
-              multiple
-              value={selectedStatus}
-              onChange={(e) => {
-                const vals = Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value);
-                setSelectedStatus(vals);
-              }}
-            >
-              <option value="submitted_to_hod">With HOD</option>
-              <option value="hod_rejected">HOD returned</option>
-              <option value="sent_to_oric">With ORIC</option>
-              <option value="oric_rejected">ORIC returned</option>
-              <option value="oric_verified">Verified</option>
-            </select>
-            <p className="mt-1 text-xs text-slate-400">Hold Ctrl/Cmd to select multiple</p>
-          </div>
+          <MultiCheckGroup
+            label="Status"
+            options={statusOptions.map((o) => ({ value: o.value, label: o.label }))}
+            selected={selectedStatus}
+            onChange={setSelectedStatus}
+          />
 
-          <div>
-            <label className="label">Publication type</label>
-            <select
-              className="field"
-              multiple
-              value={selectedType}
-              onChange={(e) => {
-                const vals = Array.from(e.target.selectedOptions, (o: HTMLOptionElement) => o.value);
-                setSelectedType(vals);
-              }}
-            >
-              <option value="journal_article">Journal article</option>
-              <option value="conference_paper">Conference paper</option>
-              <option value="book">Book</option>
-              <option value="book_chapter">Book chapter</option>
-              <option value="thesis">Thesis</option>
-              <option value="preprint">Preprint</option>
-              <option value="patent">Patent</option>
-            </select>
-            <p className="mt-1 text-xs text-slate-400">Hold Ctrl/Cmd to select multiple</p>
+          <MultiCheckGroup
+            label="Publication type"
+            options={publicationTypeOptions.map((t) => ({ value: t, label: t.replaceAll("_", " ") }))}
+            selected={selectedType}
+            onChange={setSelectedType}
+          />
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <div>
+              <label className="label">Year from</label>
+              <input type="number" className="field" placeholder="e.g. 2020" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Year to</label>
+              <input type="number" className="field" placeholder="e.g. 2026" value={yearTo} onChange={(e) => setYearTo(e.target.value)} />
+            </div>
           </div>
         </div>
-        <div className="mt-4 flex gap-3">
-          <div>
-            <label className="label">Year from</label>
-            <input type="number" className="field w-28" placeholder="2020" value={yearFrom} onChange={(e) => setYearFrom(e.target.value)} />
-          </div>
-          <div>
-            <label className="label">Year to</label>
-            <input type="number" className="field w-28" placeholder="2026" value={yearTo} onChange={(e) => setYearTo(e.target.value)} />
-          </div>
+        <div className="mt-4 flex justify-end">
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => {
+              setAppliedDuration(duration);
+              setAppliedDateFrom(dateFrom);
+              setAppliedDateTo(dateTo);
+              setAppliedDepartments([...selectedDepartments]);
+              setAppliedStatus([...selectedStatus]);
+              setAppliedType([...selectedType]);
+              setAppliedYearFrom(yearFrom);
+              setAppliedYearTo(yearTo);
+            }}
+          >
+            Apply Filters
+          </button>
         </div>
       </section>
 
